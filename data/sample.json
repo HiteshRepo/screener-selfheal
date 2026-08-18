@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "scraped_at": "2024-06-15T10:00:00Z",
+    "source_url": "https://www.screener.in/screens/dividend-yield/",
+    "collector_id": "c_msvhzc3s2gixuk6k42",
+    "record_count": 5
+  },
+  "records": [
+    {
+      "company_name": "Coal India Limited",
+      "ticker": "COALINDIA",
+      "exchange": "NSE",
+      "cmp": 458.75,
+      "dividend_yield_pct": 6.12,
+      "scraped_at": "2024-06-15T10:00:00Z",
+      "source_url": "https://www.screener.in/screens/dividend-yield/",
+      "pe_ratio": 7.4,
+      "market_cap_cr": 282310.5,
+      "roce_pct": 54.2,
+      "roe_pct": 49.8,
+      "sales_growth_pct": 3.1
+    },
+    {
+      "company_name": "Power Finance Corporation Limited",
+      "ticker": "PFC",
+      "exchange": "NSE",
+      "cmp": 417.30,
+      "dividend_yield_pct": 5.74,
+      "scraped_at": "2024-06-15T10:00:00Z",
+      "source_url": "https://www.screener.in/screens/dividend-yield/",
+      "pe_ratio": 8.9,
+      "market_cap_cr": 138025.0,
+      "roce_pct": 11.3,
+      "roe_pct": 18.6,
+      "sales_growth_pct": 22.4
+    },
+    {
+      "company_name": "REC Limited",
+      "ticker": "RECLTD",
+      "exchange": "NSE",
+      "cmp": 519.60,
+      "dividend_yield_pct": 5.39,
+      "scraped_at": "2024-06-15T10:00:00Z",
+      "source_url": "https://www.screener.in/screens/dividend-yield/",
+      "pe_ratio": 9.1,
+      "market_cap_cr": 136505.8,
+      "roce_pct": 10.8,
+      "roe_pct": 19.2,
+      "sales_growth_pct": 19.7
+    },
+    {
+      "company_name": "Oil and Natural Gas Corporation Limited",
+      "ticker": "ONGC",
+      "exchange": "NSE",
+      "cmp": 267.45,
+      "dividend_yield_pct": 4.88,
+      "scraped_at": "2024-06-15T10:00:00Z",
+      "source_url": "https://www.screener.in/screens/dividend-yield/",
+      "pe_ratio": 6.3,
+      "market_cap_cr": 335812.4,
+      "roce_pct": 17.9,
+      "roe_pct": 14.2,
+      "sales_growth_pct": null
+    },
+    {
+      "company_name": "Indian Oil Corporation Limited",
+      "ticker": "IOC",
+      "exchange": "NSE",
+      "cmp": 162.80,
+      "dividend_yield_pct": 4.55,
+      "scraped_at": "2024-06-15T10:00:00Z",
+      "source_url": "https://www.screener.in/screens/dividend-yield/",
+      "pe_ratio": 5.7,
+      "market_cap_cr": 229802.1,
+      "roce_pct": 22.1,
+      "roe_pct": 20.4,
+      "sales_growth_pct": 8.3
+    }
+  ]
+}
