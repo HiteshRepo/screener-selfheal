@@ -25,6 +25,10 @@ class TriggerError(Exception):
     """Raised when the /dca/trigger endpoint returns a non-2xx response."""
 
 
+class RefactorError(Exception):
+    """Raised when a refactor API call returns a non-2xx response."""
+
+
 class BrightDataClient:
     """Client for the Bright Data Scraper Studio Data Collector API."""
 
@@ -208,3 +212,100 @@ class BrightDataClient:
 
         logger.info("Wrote %d record(s) to %s", len(records), out)
         return len(records)
+
+    def refactor_template(self, prompt: str) -> str:
+        """Send a fix prompt to the refactor endpoint and return the job ID.
+
+        Args:
+            prompt: Natural-language description of the CSS selector fix to apply.
+
+        Returns:
+            The job ID string returned by the API.
+
+        Raises:
+            RefactorError: if the API returns a non-2xx status.
+        """
+        response = self._session.post(
+            f"{_BASE_URL}/dca/collectors/{self._collector_id}/refactor_template",
+            json={"prompt": prompt},
+        )
+
+        if not response.ok:
+            raise RefactorError(
+                f"refactor_template failed with HTTP {response.status_code}: {response.text}"
+            )
+
+        data = response.json()
+        job_id: str = data.get("job_id") or data.get("id") or ""
+        if not job_id:
+            raise RefactorError(
+                f"API did not return a job_id. Response body: {response.text}"
+            )
+
+        logger.info("Refactor job started — job_id=%s", job_id)
+        return job_id
+
+    def poll_refactor(self, job_id: str, timeout: int = 300) -> str:
+        """Poll the refactor progress endpoint until a terminal status is reached.
+
+        Args:
+            job_id: The job ID returned by refactor_template.
+            timeout: Maximum seconds to wait before raising TimeoutError.
+
+        Returns:
+            The terminal status string: ``"done"`` or ``"pending_answer"``.
+
+        Raises:
+            TimeoutError: if neither terminal status is reached within `timeout` seconds.
+        """
+        _POLL_INTERVAL = 5
+        _TERMINAL = {"done", "pending_answer"}
+
+        start = time.monotonic()
+        url = f"{_BASE_URL}/dca/collectors/{self._collector_id}/refactor_template/progress"
+
+        while True:
+            elapsed = time.monotonic() - start
+            if elapsed >= timeout:
+                raise TimeoutError(
+                    f"Refactor job {job_id} did not reach a terminal status "
+                    f"after {elapsed:.0f}s"
+                )
+
+            response = self._session.get(url)
+            response.raise_for_status()
+
+            status: str = response.json().get("status", "")
+            logger.info(
+                "poll_refactor job_id=%s status=%s elapsed=%.0fs",
+                job_id,
+                status,
+                elapsed,
+            )
+
+            if status in _TERMINAL:
+                logger.info("Refactor job %s reached status '%s'", job_id, status)
+                return status
+
+            time.sleep(_POLL_INTERVAL)
+
+    def approve_refactor(self, job_id: str) -> None:
+        """Approve a pending refactor rewrite so Bright Data saves the changes.
+
+        Args:
+            job_id: The job ID returned by refactor_template.
+
+        Raises:
+            RefactorError: if the API returns a non-2xx status.
+        """
+        response = self._session.post(
+            f"{_BASE_URL}/dca/collectors/{self._collector_id}/resume_automation_job",
+            json={"message": True, "auto_save": True},
+        )
+
+        if not response.ok:
+            raise RefactorError(
+                f"approve_refactor failed with HTTP {response.status_code}: {response.text}"
+            )
+
+        logger.info("Refactor job %s approved and saved.", job_id)
