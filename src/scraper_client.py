@@ -77,7 +77,9 @@ class BrightDataClient:
             )
 
         data = response.json()
-        dataset_id: str = data.get("dataset_id") or data.get("id") or ""
+        dataset_id: str = (
+            data.get("dataset_id") or data.get("collection_id") or data.get("id") or ""
+        )
         if not dataset_id:
             raise TriggerError(
                 f"API did not return a dataset_id. Response body: {response.text}"
