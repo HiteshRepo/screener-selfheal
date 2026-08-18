@@ -169,60 +169,120 @@ class TestPollUntilReady:
         with patch.dict(os.environ, _make_env(), clear=True):
             return BrightDataClient()
 
-    def test_returns_dataset_id_when_status_is_ready(self) -> None:
+    def test_returns_dataset_id_on_http_200(self) -> None:
+        """HTTP 200 → ready immediately (task 2.2)."""
         client = self._client()
-        mock_resp = _make_response(200, {"status": "ready"})
+        mock_resp = _make_response(200, [])
 
-        with patch.object(client._session, "get", return_value=mock_resp):
+        with patch.object(client._session, "get", return_value=mock_resp) as mock_get:
             with patch("time.sleep"):
                 result = client.poll_until_ready("ds_abc123", poll_interval=0)
 
         assert result == "ds_abc123"
+        assert mock_get.call_count == 1
 
-    def test_retries_until_ready(self) -> None:
+    def test_retries_on_http_202_then_returns_on_200(self) -> None:
+        """HTTP 202 × 2 then HTTP 200 → returns after exactly 3 requests (task 2.1)."""
         client = self._client()
-        pending_resp = _make_response(200, {"status": "running"})
-        ready_resp = _make_response(200, {"status": "ready"})
+        building_resp = _make_response(202, {"status": "building", "message": "try again"})
+        ready_resp = _make_response(200, [])
 
         with patch.object(
-            client._session, "get", side_effect=[pending_resp, pending_resp, ready_resp]
-        ):
+            client._session,
+            "get",
+            side_effect=[building_resp, building_resp, ready_resp],
+        ) as mock_get:
             with patch("time.sleep"):
                 result = client.poll_until_ready("ds_abc123", poll_interval=0)
 
         assert result == "ds_abc123"
+        assert mock_get.call_count == 3
 
     def test_raises_timeout_error_when_not_ready_in_time(self) -> None:
+        """Always HTTP 202 → TimeoutError with dataset ID in message (task 2.3)."""
         client = self._client()
-        pending_resp = _make_response(200, {"status": "running"})
+        building_resp = _make_response(202, {"status": "building"})
 
         call_count = 0
 
         def _fake_monotonic():
             nonlocal call_count
             call_count += 1
-            # Simulate time advancing fast: first call returns 0, subsequent ones exceed timeout
             return 0.0 if call_count == 1 else 400.0
 
-        with patch.object(client._session, "get", return_value=pending_resp):
+        with patch.object(client._session, "get", return_value=building_resp):
             with patch("time.sleep"):
                 with patch("time.monotonic", side_effect=_fake_monotonic):
-                    with pytest.raises(TimeoutError):
+                    with pytest.raises(TimeoutError) as exc_info:
                         client.poll_until_ready("ds_abc123", timeout=300, poll_interval=0)
 
-    def test_handles_empty_response_body_gracefully(self) -> None:
+        assert "ds_abc123" in str(exc_info.value)
+
+    def test_raises_after_consecutive_parse_errors(self) -> None:
+        """Unparseable 202 body 3× → raises rather than looping indefinitely (task 2.4)."""
         client = self._client()
-        empty_resp = _make_response(200)
-        empty_resp.json.side_effect = ValueError("No JSON")
-        ready_resp = _make_response(200, {"status": "ready"})
+        bad_resp = _make_response(202)
+        bad_resp.json.side_effect = ValueError("No JSON")
 
         with patch.object(
-            client._session, "get", side_effect=[empty_resp, ready_resp]
+            client._session,
+            "get",
+            side_effect=[bad_resp, bad_resp, bad_resp],
+        ):
+            with patch("time.sleep"):
+                with pytest.raises(ValueError):
+                    client.poll_until_ready("ds_abc123", poll_interval=0)
+
+    def test_resets_parse_error_counter_on_successful_parse(self) -> None:
+        """One parse error, then a parseable 202, then 200 → no error raised."""
+        client = self._client()
+        bad_resp = _make_response(202)
+        bad_resp.json.side_effect = ValueError("No JSON")
+        good_202 = _make_response(202, {"status": "building"})
+        ready_resp = _make_response(200, [])
+
+        with patch.object(
+            client._session,
+            "get",
+            side_effect=[bad_resp, good_202, ready_resp],
         ):
             with patch("time.sleep"):
                 result = client.poll_until_ready("ds_abc123", poll_interval=0)
 
         assert result == "ds_abc123"
+
+    def test_all_get_requests_include_format_json(self) -> None:
+        """Every outgoing GET includes format=json in params (task 2.5)."""
+        client = self._client()
+        building_resp = _make_response(202, {"status": "building"})
+        ready_resp = _make_response(200, [])
+
+        with patch.object(
+            client._session,
+            "get",
+            side_effect=[building_resp, ready_resp],
+        ) as mock_get:
+            with patch("time.sleep"):
+                client.poll_until_ready("ds_abc123", poll_interval=0)
+
+        for call in mock_get.call_args_list:
+            params = call.kwargs.get("params", {})
+            assert params.get("format") == "json", (
+                f"Expected format=json in params, got: {params}"
+            )
+
+    def test_http_200_with_empty_body_treated_as_ready(self) -> None:
+        """HTTP 200 with empty/unparseable body still returns dataset_id (spec scenario)."""
+        client = self._client()
+        empty_200 = _make_response(200)
+        empty_200.json.side_effect = ValueError("No JSON")
+
+        with patch.object(client._session, "get", return_value=empty_200) as mock_get:
+            with patch("time.sleep"):
+                result = client.poll_until_ready("ds_abc123", poll_interval=0)
+
+        assert result == "ds_abc123"
+        assert mock_get.call_count == 1
 
 
 # ---------------------------------------------------------------------------
