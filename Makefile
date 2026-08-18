@@ -2,7 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: venv install test test-schema test-diff test-scraper scrape diff smoke clean
+.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal clean
 
 ## Setup
 
@@ -25,6 +25,12 @@ test-diff: install
 
 test-scraper: install
 	$(PYTHON) -m pytest tests/test_scraper_client.py -v
+
+test-health: install
+	$(PYTHON) -m pytest tests/test_health_check.py -v
+
+test-analyser: install
+	$(PYTHON) -m pytest tests/test_page_analyser.py -v
 
 ## Live runs (requires .env with real secrets)
 
@@ -49,6 +55,9 @@ for r in records:
     validate_record(r)
 print(f"OK — {len(records)} record(s) validated.")
 EOF
+
+selfheal:
+	@set -a && source .env && set +a && $(PYTHON) src/run_selfheal.py
 
 ## Cleanup
 
