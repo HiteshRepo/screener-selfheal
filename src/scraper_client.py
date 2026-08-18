@@ -124,9 +124,21 @@ class BrightDataClient:
             )
             response.raise_for_status()
 
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError:
+                # API returned empty body (e.g. 200 No Content during warm-up);
+                # treat as still pending and keep polling.
+                logger.debug(
+                    "dataset_id=%s empty body, retrying elapsed=%.0fs",
+                    dataset_id,
+                    elapsed,
+                )
+                time.sleep(poll_interval)
+                continue
+
             last_status = data.get("status", "unknown")
-            logger.debug(
+            logger.info(
                 "dataset_id=%s status=%s elapsed=%.0fs",
                 dataset_id,
                 last_status,
