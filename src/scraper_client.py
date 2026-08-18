@@ -14,6 +14,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.brightdata.com"
+_DEFAULT_TARGET_URL = "https://www.screener.in/screens/dividend-yield/"
 
 
 class ConfigurationError(Exception):
@@ -59,9 +60,7 @@ class BrightDataClient:
             TriggerError: if the API returns a non-2xx status.
         """
         params: dict[str, str] = {"collector": self._collector_id}
-        body: dict[str, Any] = {}
-        if target_url is not None:
-            body["url"] = target_url
+        body: dict[str, Any] = {"url": target_url or _DEFAULT_TARGET_URL}
 
         triggered_at = datetime.now(timezone.utc).isoformat()
         logger.info("Triggering collector %s at %s", self._collector_id, triggered_at)
@@ -69,7 +68,7 @@ class BrightDataClient:
         response = self._session.post(
             f"{_BASE_URL}/dca/trigger",
             params=params,
-            json=body if body else None,
+            json=body,
         )
 
         if not response.ok:
