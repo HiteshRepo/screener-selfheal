@@ -1,0 +1,46 @@
+name: Scrape on Merge
+
+# Triggers on every push to main.
+# NOTE: GitHub natively skips this workflow when the commit message contains
+# "[skip ci]", which prevents the bot's own commit from re-triggering the
+# workflow (task 6.4 — no extra configuration required for the default
+# GITHUB_TOKEN).
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scrape pipeline
+        env:
+          BRIGHT_DATA_API_TOKEN: ${{ secrets.BRIGHT_DATA_API_TOKEN }}
+          BRIGHT_DATA_COLLECTOR_ID: ${{ secrets.BRIGHT_DATA_COLLECTOR_ID }}
+        run: |
+          python src/run_scrape.py
+          python src/run_diff.py
+
+      - name: Commit results
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add data/latest.json "data/changes-$(date -u +%Y-%m-%d).md" || true
+          git diff --cached --quiet || git commit -m "chore: scrape results [skip ci]"
+          git push
