@@ -1,0 +1,51 @@
+name: Self-Heal Loop
+
+# Triggered manually via the GitHub Actions UI.
+# Optionally accepts a target URL override; if omitted, run_selfheal.py uses
+# its own default (https://www.screener.in/screens/dividend-yield/).
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Override the collector's default target URL"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  selfheal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run self-heal loop
+        env:
+          BRIGHT_DATA_API_TOKEN: ${{ secrets.BRIGHT_DATA_API_TOKEN }}
+          BRIGHT_DATA_COLLECTOR_ID: ${{ secrets.BRIGHT_DATA_COLLECTOR_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "${{ inputs.target_url }}" ]; then
+            python src/run_selfheal.py --target-url "${{ inputs.target_url }}"
+          else
+            python src/run_selfheal.py
+          fi
+
+      - name: Commit results
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add data/latest.json data/changes-*.md || true
+          git diff --cached --quiet || git commit -m "chore: selfheal results [skip ci]"
+          git push
