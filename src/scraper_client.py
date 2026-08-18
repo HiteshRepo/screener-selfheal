@@ -112,46 +112,49 @@ class BrightDataClient:
             TimeoutError: if the dataset is not ready within `timeout` seconds.
         """
         start = time.monotonic()
-        last_status = "unknown"
+        consecutive_parse_errors = 0
 
         while True:
             elapsed = time.monotonic() - start
             if elapsed >= timeout:
                 raise TimeoutError(
-                    f"Dataset {dataset_id} not ready after {elapsed:.0f}s "
-                    f"(last status: {last_status})"
+                    f"Dataset {dataset_id} not ready after {elapsed:.0f}s"
                 )
 
             response = self._session.get(
                 f"{_BASE_URL}/dca/dataset",
-                params={"id": dataset_id},
+                params={"id": dataset_id, "format": "json"},
             )
             response.raise_for_status()
 
-            try:
-                data = response.json()
-            except ValueError:
-                # API returned empty body (e.g. 200 No Content during warm-up);
-                # treat as still pending and keep polling.
-                logger.debug(
-                    "dataset_id=%s empty body, retrying elapsed=%.0fs",
+            if response.status_code == 200:
+                logger.info(
+                    "dataset_id=%s status=http_200_ready elapsed=%.0fs",
                     dataset_id,
                     elapsed,
                 )
-                time.sleep(poll_interval)
-                continue
+                return dataset_id
 
-            last_status = data.get("status", "unknown")
+            # HTTP 202: still building — read status from body when available
+            try:
+                data = response.json()
+                consecutive_parse_errors = 0
+                status = data.get("status", "building")
+            except ValueError:
+                consecutive_parse_errors += 1
+                if consecutive_parse_errors >= 2:
+                    raise ValueError(
+                        f"Dataset {dataset_id} returned unparseable body "
+                        f"for {consecutive_parse_errors} consecutive polls"
+                    )
+                status = "building"
+
             logger.info(
                 "dataset_id=%s status=%s elapsed=%.0fs",
                 dataset_id,
-                last_status,
+                status,
                 elapsed,
             )
-
-            if last_status == "ready":
-                logger.info("Dataset %s is ready (%.0fs)", dataset_id, elapsed)
-                return dataset_id
 
             time.sleep(poll_interval)
 
