@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ScreenerRecord",
+  "description": "Canonical schema for one company record scraped from Screener.in",
+  "type": "object",
+  "required": [
+    "company_name",
+    "ticker",
+    "exchange",
+    "cmp",
+    "dividend_yield_pct",
+    "scraped_at",
+    "source_url"
+  ],
+  "properties": {
+    "company_name": {
+      "type": "string",
+      "description": "Full company name as displayed on Screener.in"
+    },
+    "ticker": {
+      "type": "string",
+      "description": "NSE or BSE ticker symbol (e.g. INFY)"
+    },
+    "exchange": {
+      "type": "string",
+      "enum": ["NSE", "BSE"],
+      "description": "Stock exchange"
+    },
+    "cmp": {
+      "type": "number",
+      "description": "Current market price in INR"
+    },
+    "dividend_yield_pct": {
+      "type": "number",
+      "description": "Dividend yield as a percentage (e.g. 3.5 means 3.5%)"
+    },
+    "scraped_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp of when the scrape completed (ISO 8601)"
+    },
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Full URL of the screen that was scraped"
+    },
+    "pe_ratio": {
+      "type": ["number", "null"],
+      "description": "Price-to-earnings ratio (optional)"
+    },
+    "market_cap_cr": {
+      "type": ["number", "null"],
+      "description": "Market capitalisation in crores INR (optional)"
+    },
+    "roce_pct": {
+      "type": ["number", "null"],
+      "description": "Return on capital employed as a percentage (optional)"
+    },
+    "roe_pct": {
+      "type": ["number", "null"],
+      "description": "Return on equity as a percentage (optional)"
+    },
+    "sales_growth_pct": {
+      "type": ["number", "null"],
+      "description": "Sales growth as a percentage (optional)"
+    }
+  },
+  "additionalProperties": false
+}
