@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<!-- TEST FIXTURE — not live data -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Highest Div. Yield Shares — Mirror (Test Fixture)</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f8f8f8; }
+    .page-banner {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      color: #856404;
+      padding: 10px 16px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 16px; }
+    /* Intentionally renamed from .data-table to .screener-mirror to break original selectors */
+    .table-outer-wrapper {
+      overflow-x: auto;
+    }
+    .table-inner-container {
+      /* Extra wrapping div layer — increases DOM depth vs. original page */
+      padding: 0;
+    }
+    table.screener-mirror {
+      border-collapse: collapse;
+      width: 100%;
+      background: #fff;
+    }
+    table.screener-mirror th,
+    table.screener-mirror td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: right;
+    }
+    table.screener-mirror th {
+      background: #e9ecef;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    table.screener-mirror td:nth-child(2) { text-align: left; }
+    table.screener-mirror tr:nth-child(even) { background: #f2f2f2; }
+  </style>
+</head>
+<body>
+
+  <div class="page-banner">
+    &#9888; TEST FIXTURE — not live data. This page intentionally alters the
+    table structure to demonstrate self-healing capability.
+  </div>
+
+  <h1>Highest Dividend-Yield Shares (Mirror — Test Fixture)</h1>
+
+  <!--
+    LAYOUT ALTERATIONS vs. original Screener.in page:
+    1. Table class renamed: "data-table" → "screener-mirror"
+    2. Extra wrapping <div> layers (.table-outer-wrapper > .table-inner-container)
+       increase DOM depth, breaking XPath like //table[@class='data-table']
+    3. Column header renamed: "Dividend Yield" → "Div. Yield (%)"
+    4. Column order changed: ROCE and ROE columns appear BEFORE Div. Yield (%)
+  -->
+
+  <div class="table-outer-wrapper">
+    <div class="table-inner-container">
+      <table class="screener-mirror">
+        <thead>
+          <tr>
+            <th>S.No.</th>
+            <th>Name</th>
+            <th>CMP Rs.</th>
+            <th>P/E</th>
+            <th>Mkt Cap Rs. Cr.</th>
+            <!-- ROCE and ROE moved before Div. Yield — column order differs from original -->
+            <th>ROCE %</th>
+            <th>ROE %</th>
+            <!-- Renamed: original says "Dividend Yield", mirror says "Div. Yield (%)" -->
+            <th>Div. Yield (%)</th>
+            <th>Sales Gr. 3Yrs %</th>
+          </tr>
+        </thead>
+        <tbody class="mirror-rows">
+          <tr data-row-id="1">
+            <td>1</td>
+            <td><a href="#">Indus Power Ltd</a></td>
+            <td>142.35</td>
+            <td>9.8</td>
+            <td>3,204</td>
+            <td>18.40</td>
+            <td>14.20</td>
+            <td>6.85</td>
+            <td>11.30</td>
+          </tr>
+          <tr data-row-id="2">
+            <td>2</td>
+            <td><a href="#">Bharat Chem Industries</a></td>
+            <td>87.60</td>
+            <td>7.2</td>
+            <td>1,540</td>
+            <td>22.10</td>
+            <td>17.80</td>
+            <td>6.20</td>
+            <td>8.75</td>
+          </tr>
+          <tr data-row-id="3">
+            <td>3</td>
+            <td><a href="#">Sunrise Auto Ltd</a></td>
+            <td>310.50</td>
+            <td>12.4</td>
+            <td>8,920</td>
+            <td>15.60</td>
+            <td>12.40</td>
+            <td>5.75</td>
+            <td>13.60</td>
+          </tr>
+          <tr data-row-id="4">
+            <td>4</td>
+            <td><a href="#">Galaxy Finance Ltd</a></td>
+            <td>58.90</td>
+            <td>6.5</td>
+            <td>720</td>
+            <td>19.30</td>
+            <td>16.50</td>
+            <td>5.40</td>
+            <td>7.20</td>
+          </tr>
+          <tr data-row-id="5">
+            <td>5</td>
+            <td><a href="#">Himalayan Steel Corp</a></td>
+            <td>225.80</td>
+            <td>10.1</td>
+            <td>5,670</td>
+            <td>21.70</td>
+            <td>18.90</td>
+            <td>5.10</td>
+            <td>9.80</td>
+          </tr>
+          <tr data-row-id="6">
+            <td>6</td>
+            <td><a href="#">Deccan Agro Corp</a></td>
+            <td>44.15</td>
+            <td>8.3</td>
+            <td>490</td>
+            <td>16.20</td>
+            <td>13.10</td>
+            <td>4.90</td>
+            <td>6.50</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</body>
+</html>
