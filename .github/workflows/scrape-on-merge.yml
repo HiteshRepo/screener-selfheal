@@ -13,6 +13,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   scrape:
@@ -56,3 +57,16 @@ jobs:
             --base main \
             --head "$BRANCH"
           gh pr merge "$BRANCH" --auto --squash
+
+      - name: Trigger self-heal if record count is zero
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RECORD_COUNT=$(python -c "import json; d=json.load(open('data/latest.json')); print(d['meta']['record_count'])")
+          echo "record_count=$RECORD_COUNT"
+          if [ "$RECORD_COUNT" -eq 0 ]; then
+            echo "Empty result set — triggering self-heal loop."
+            gh workflow run selfheal-loop.yml
+          else
+            echo "Result set healthy ($RECORD_COUNT records) — no self-heal needed."
+          fi
