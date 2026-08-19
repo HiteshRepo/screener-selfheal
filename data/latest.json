@@ -1,94 +1,74 @@
 {
   "meta": {
-    "scraped_at": "2026-08-19T21:01:51Z",
+    "scraped_at": "2026-08-19T21:03:13Z",
     "source_url": "https://www.screener.in/screens/3/highest-dividend-yield-shares/",
     "collector_id": "c_mt01oyrsyizhskz8c",
     "record_count": 5
   },
   "records": [
     {
+      "ticker": "COAL_INDIA_LIMITED",
       "company_name": "Coal India Limited",
-      "ticker": null,
-      "exchange": null,
-      "cmp": {
-        "value": 458.75,
-        "currency": "INR"
-      },
+      "cmp": 458.75,
+      "dividend_yield_pct": 6.12,
       "pe_ratio": 7.4,
-      "market_cap_cr": "2,82,310.50",
+      "market_cap_cr": 282310.5,
       "roce_pct": 54.2,
       "roe_pct": 49.8,
-      "dividend_yield_pct": 6.12,
-      "sales_growth_pct": "3.10",
-      "scraped_at": "2026-08-19T21:01:43.855Z",
+      "sales_growth_pct": 3.1,
+      "scraped_at": "2026-08-19T21:03:06.721Z",
       "source_url": "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html"
     },
     {
+      "ticker": "POWER_FINANCE_CORPOR",
       "company_name": "Power Finance Corporation Limited",
-      "ticker": null,
-      "exchange": null,
-      "cmp": {
-        "value": 417.3,
-        "currency": "INR"
-      },
+      "cmp": 417.3,
+      "dividend_yield_pct": 5.74,
       "pe_ratio": 8.9,
-      "market_cap_cr": "1,38,025.00",
+      "market_cap_cr": 138025.0,
       "roce_pct": 11.3,
       "roe_pct": 18.6,
-      "dividend_yield_pct": 5.74,
-      "sales_growth_pct": "22.40",
-      "scraped_at": "2026-08-19T21:01:43.858Z",
+      "sales_growth_pct": 22.4,
+      "scraped_at": "2026-08-19T21:03:06.725Z",
       "source_url": "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html"
     },
     {
+      "ticker": "REC_LIMITED",
       "company_name": "REC Limited",
-      "ticker": null,
-      "exchange": null,
-      "cmp": {
-        "value": 519.6,
-        "currency": "INR"
-      },
+      "cmp": 519.6,
+      "dividend_yield_pct": 5.39,
       "pe_ratio": 9.1,
-      "market_cap_cr": "1,36,505.80",
+      "market_cap_cr": 136505.8,
       "roce_pct": 10.8,
       "roe_pct": 19.2,
-      "dividend_yield_pct": 5.39,
-      "sales_growth_pct": "19.70",
-      "scraped_at": "2026-08-19T21:01:43.860Z",
+      "sales_growth_pct": 19.7,
+      "scraped_at": "2026-08-19T21:03:06.726Z",
       "source_url": "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html"
     },
     {
+      "ticker": "OIL_AND_NATURAL_GAS_",
       "company_name": "Oil and Natural Gas Corporation Limited",
-      "ticker": null,
-      "exchange": null,
-      "cmp": {
-        "value": 267.45,
-        "currency": "INR"
-      },
+      "cmp": 267.45,
+      "dividend_yield_pct": 4.88,
       "pe_ratio": 6.3,
-      "market_cap_cr": "3,35,812.40",
+      "market_cap_cr": 335812.4,
       "roce_pct": 17.9,
       "roe_pct": 14.2,
-      "dividend_yield_pct": 4.88,
-      "sales_growth_pct": "—",
-      "scraped_at": "2026-08-19T21:01:43.861Z",
+      "sales_growth_pct": null,
+      "scraped_at": "2026-08-19T21:03:06.727Z",
       "source_url": "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html"
     },
     {
+      "ticker": "INDIAN_OIL_CORPORATI",
       "company_name": "Indian Oil Corporation Limited",
-      "ticker": null,
-      "exchange": null,
-      "cmp": {
-        "value": 162.8,
-        "currency": "INR"
-      },
+      "cmp": 162.8,
+      "dividend_yield_pct": 4.55,
       "pe_ratio": 5.7,
-      "market_cap_cr": "2,29,802.10",
+      "market_cap_cr": 229802.1,
       "roce_pct": 22.1,
       "roe_pct": 20.4,
-      "dividend_yield_pct": 4.55,
-      "sales_growth_pct": "8.30",
-      "scraped_at": "2026-08-19T21:01:43.862Z",
+      "sales_growth_pct": 8.3,
+      "scraped_at": "2026-08-19T21:03:06.728Z",
       "source_url": "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html"
     }
   ]
