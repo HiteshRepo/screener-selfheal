@@ -67,14 +67,17 @@ def _fetch_html(target_url: str) -> str:
         )
 
     results = response.json()
-    if not isinstance(results, list) or not results:
+    if isinstance(results, dict):
+        item = results
+    elif isinstance(results, list) and results:
+        item = results[0]
+    else:
         raise PageFetchError(
             f"Bright Data Crawl API returned unexpected response: {response.text[:200]}"
         )
-
-    item = results[0]
     html = (
-        item.get("html")
+        item.get("page_html")
+        or item.get("html")
         or item.get("content")
         or item.get("body")
         or item.get("markdown")
