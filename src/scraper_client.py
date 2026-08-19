@@ -281,16 +281,51 @@ class BrightDataClient:
         # emits a flat list or a nested {"stocks": [...]} shape. We handle both
         # here so _normalize_records stays robust across self-heal cycles.
         # Records are identified by having "company_name" but no "ticker" or
-        # "product_page_url". A synthetic ticker is derived from company_name so
-        # downstream health_check and diff_engine have a stable identity key.
+        # "product_page_url".
+        #
+        # Field remapping: the demo collector uses different field names from the
+        # canonical schema (e.g. current_price vs cmp, dividend_yield vs
+        # dividend_yield_pct). We remap here so health_check passes regardless
+        # of what field names the self-heal refactor leaves behind.
         if "company_name" in first and "product_page_url" not in first:
+            scraped_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             normalised = []
             for r in raw:
                 name = r.get("company_name", "")
                 synthetic_ticker = name.upper().replace(" ", "_")[:20]
-                normalised.append({"ticker": synthetic_ticker, **r})
+
+                # Parse numeric fields that Bright Data may return as strings or
+                # Money objects (serialised as {"amount": ..., "currency": ...}).
+                def _num(val: Any) -> float | None:
+                    if val is None:
+                        return None
+                    if isinstance(val, (int, float)):
+                        return float(val)
+                    if isinstance(val, dict):
+                        return float(val.get("amount", 0))
+                    try:
+                        return float(str(val).replace(",", ""))
+                    except (ValueError, TypeError):
+                        return None
+
+                normalised.append({
+                    "ticker": synthetic_ticker,
+                    "company_name": name,
+                    # canonical name for current market price
+                    "cmp": _num(r.get("current_price") or r.get("cmp")),
+                    # canonical name for dividend yield
+                    "dividend_yield_pct": _num(r.get("dividend_yield") or r.get("dividend_yield_pct")),
+                    "pe_ratio": _num(r.get("pe_ratio")),
+                    "market_cap_cr": _num(r.get("market_cap") or r.get("market_cap_cr")),
+                    "roce_pct": _num(r.get("roce") or r.get("roce_pct")),
+                    "roe_pct": _num(r.get("roe") or r.get("roe_pct")),
+                    "sales_growth_pct": _num(r.get("sales_growth_3yrs") or r.get("sales_growth_pct")),
+                    # required by schema but not present in demo collector output
+                    "scraped_at": r.get("scraped_at", scraped_at),
+                    "source_url": r.get("source_url", _DEFAULT_TARGET_URL),
+                })
             logger.info(
-                "Demo mirror format detected — normalised %d record(s) with synthetic tickers.",
+                "Demo mirror format detected — normalised %d record(s) with field remapping.",
                 len(normalised),
             )
             return normalised
