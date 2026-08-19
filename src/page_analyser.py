@@ -17,6 +17,10 @@ _MAX_HTML_CHARS = 30_000  # safe token-budget approximation (~7 500 tokens)
 _MAX_FIX_CHARS = 900
 
 
+class PageFetchError(Exception):
+    """Raised when the target URL returns a non-200 HTTP response."""
+
+
 def _load_schema_fields() -> list[str]:
     with open(_SCHEMA_PATH, "r", encoding="utf-8") as fh:
         schema = json.load(fh)
@@ -41,9 +45,7 @@ def analyse_page(target_url: str) -> str:
 
     response = requests.get(target_url)
     if response.status_code != 200:
-        logger.warning(
-            "Non-200 response fetching %s: status=%d", target_url, response.status_code
-        )
+        raise PageFetchError(f"GET {target_url} returned HTTP {response.status_code}")
 
     html = response.text[:_MAX_HTML_CHARS]
     schema_fields = _load_schema_fields()
