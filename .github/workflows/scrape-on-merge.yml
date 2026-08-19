@@ -6,9 +6,10 @@ name: Scrape on Merge
 # workflow (task 6.4 — no extra configuration required for the default
 # GITHUB_TOKEN).
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: # manual trigger only — push trigger temporarily disabled
+  # push:
+  #   branches:
+  #     - main
 
 permissions:
   contents: write
