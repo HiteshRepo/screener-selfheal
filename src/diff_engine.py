@@ -89,10 +89,64 @@ class DiffEngine:
         previous_records = self._load_records(previous_path)
         return latest_records, previous_records
 
+    # Candidate field names for the ticker symbol, in priority order.
+    _TICKER_ALIASES: list[str] = [
+        "ticker",
+        "symbol",
+        "stock_symbol",
+        "nse_code",
+        "bse_code",
+        "scrip_code",
+        "scrip",
+        "nse_symbol",
+        "bse_symbol",
+    ]
+
     def _load_records(self, path: str) -> list[dict]:
         with open(path, encoding="utf-8") as fh:
             envelope = json.load(fh)
-        return envelope.get("records", [])
+        records: list[dict] = envelope.get("records", [])
+        return self._normalize_records(records)
+
+    def _normalize_records(self, records: list[dict]) -> list[dict]:
+        """Ensure every record has a ``ticker`` key.
+
+        Bright Data may return the ticker under a different field name.  Try
+        each alias in ``_TICKER_ALIASES`` in order.  Records that cannot be
+        normalised are dropped with a warning so the diff can still proceed.
+        """
+        if not records:
+            return records
+
+        # Detect the alias used in this batch (check only the first record).
+        first = records[0]
+        if "ticker" in first:
+            return records  # already canonical — fast path
+
+        alias = next(
+            (a for a in self._TICKER_ALIASES if a in first),
+            None,
+        )
+        if alias is None:
+            logger.warning(
+                "No recognised ticker field found in scraped records. "
+                "Known keys: %s. Records will be skipped.",
+                list(first.keys()),
+            )
+            return []
+
+        logger.info(
+            "Normalising ticker field from '%s' → 'ticker' for %d record(s).",
+            alias,
+            len(records),
+        )
+        normalised: list[dict] = []
+        for r in records:
+            if alias not in r:
+                logger.warning("Record missing '%s' field — skipping: %s", alias, r)
+                continue
+            normalised.append({**r, "ticker": r[alias]})
+        return normalised
 
     def diff(
         self,

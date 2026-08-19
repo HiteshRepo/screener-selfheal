@@ -360,3 +360,92 @@ class TestDownloadResults:
             envelope = json.load(fh)
 
         assert envelope["meta"]["record_count"] == len(envelope["records"])
+
+
+# ---------------------------------------------------------------------------
+# Tests: _normalize_records (Bright Data URL-based format)
+# ---------------------------------------------------------------------------
+
+_URL_RECORD_WITH_DATA = {
+    "product_page_url": "https://www.screener.in/company/GULFOILLUB/",
+    "stock_results": [
+        {
+            "company_name": "Gulf Oil Lubricants",
+            "cmp": 950.0,
+            "dividend_yield_pct": 5.2,
+        }
+    ],
+    "input": {"url": "https://www.screener.in/screens/3/highest-dividend-yield-shares/"},
+}
+
+_URL_RECORD_EMPTY = {
+    "product_page_url": "https://www.screener.in/company/CENTRALBK/consolidated/",
+    "stock_results": [],
+    "input": {"url": "https://www.screener.in/screens/3/highest-dividend-yield-shares/"},
+}
+
+
+class TestNormalizeRecords:
+    def _client(self) -> BrightDataClient:
+        with patch.dict(os.environ, _make_env(), clear=True):
+            return BrightDataClient()
+
+    def test_canonical_records_pass_through(self) -> None:
+        client = self._client()
+        records = [
+            {
+                "ticker": "ALPHA",
+                "company_name": "Alpha Corp",
+                "cmp": 100.0,
+                "dividend_yield_pct": 3.5,
+            }
+        ]
+        assert client._normalize_records(records) == records
+
+    def test_empty_input_returns_empty(self) -> None:
+        client = self._client()
+        assert client._normalize_records([]) == []
+
+    def test_url_based_record_with_data_is_normalised(self) -> None:
+        client = self._client()
+        result = client._normalize_records([_URL_RECORD_WITH_DATA])
+        assert len(result) == 1
+        assert result[0]["ticker"] == "GULFOILLUB"
+        assert result[0]["cmp"] == 950.0
+
+    def test_consolidated_url_ticker_extracted_correctly(self) -> None:
+        client = self._client()
+        record = {
+            "product_page_url": "https://www.screener.in/company/CENTRALBK/consolidated/",
+            "stock_results": [{"company_name": "Central Bank", "cmp": 55.0, "dividend_yield_pct": 3.0}],
+            "input": {},
+        }
+        result = client._normalize_records([record])
+        assert result[0]["ticker"] == "CENTRALBK"
+
+    def test_url_based_record_with_empty_stock_results_skipped(self) -> None:
+        client = self._client()
+        result = client._normalize_records([_URL_RECORD_EMPTY])
+        assert result == []
+
+    def test_mixed_records_only_valid_kept(self) -> None:
+        client = self._client()
+        result = client._normalize_records([_URL_RECORD_WITH_DATA, _URL_RECORD_EMPTY])
+        assert len(result) == 1
+        assert result[0]["ticker"] == "GULFOILLUB"
+
+    def test_download_results_returns_zero_when_all_stock_results_empty(
+        self, tmp_path: Path
+    ) -> None:
+        client = self._client()
+        raw = [_URL_RECORD_EMPTY, _URL_RECORD_EMPTY]
+        mock_resp = _make_response(200, raw)
+        output_path = str(tmp_path / "latest.json")
+
+        with patch.object(client._session, "get", return_value=mock_resp):
+            count = client.download_results("ds_abc123", output_path=output_path)
+
+        assert count == 0
+        with open(output_path, encoding="utf-8") as fh:
+            envelope = json.load(fh)
+        assert envelope["meta"]["record_count"] == 0
