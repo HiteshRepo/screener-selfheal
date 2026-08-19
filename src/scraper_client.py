@@ -14,7 +14,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.brightdata.com"
-_DEFAULT_TARGET_URL = "https://www.screener.in/screens/dividend-yield/"
+_DEFAULT_TARGET_URL = "https://www.screener.in/screens/3/highest-dividend-yield-shares/"
 
 
 class ConfigurationError(Exception):
@@ -203,7 +203,7 @@ class BrightDataClient:
                 "scraped_at": datetime.now(timezone.utc).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"
                 ),
-                "source_url": "https://www.screener.in/screens/dividend-yield/",
+                "source_url": _DEFAULT_TARGET_URL,
                 "collector_id": self._collector_id,
                 "record_count": len(records),
             },

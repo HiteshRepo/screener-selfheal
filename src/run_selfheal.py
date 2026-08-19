@@ -19,7 +19,7 @@ from health_check import health_check, HealthStatus  # noqa: E402
 from page_analyser import analyse_page  # noqa: E402
 
 _OUTPUT_PATH = "data/latest.json"
-_DEFAULT_TARGET_URL = "https://www.screener.in/screens/dividend-yield/"
+_DEFAULT_TARGET_URL = "https://www.screener.in/screens/3/highest-dividend-yield-shares/"
 
 logging.basicConfig(
     level=logging.INFO,
