@@ -33,8 +33,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--timeout",
         type=int,
-        default=300,
-        help="Max seconds to wait for dataset ready (default: 300).",
+        default=900,
+        help="Max seconds to wait for dataset ready (default: 900).",
     )
     args = parser.parse_args(argv)
 
