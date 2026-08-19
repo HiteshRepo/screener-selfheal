@@ -130,6 +130,30 @@ class TestFetchHtml:
             with pytest.raises(PageFetchError, match="unexpected response"):
                 _fetch_html(_TARGET_URL)
 
+    def test_dict_response_with_markdown_key_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        resp = MagicMock()
+        resp.ok = True
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {"markdown": "# Page\nSome content"}
+        with patch("page_analyser.requests.post", return_value=resp):
+            html = _fetch_html(_TARGET_URL)
+        assert html == "# Page\nSome content"
+
+    def test_list_response_with_html_key_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        resp = MagicMock()
+        resp.ok = True
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = [{"html": "<html>ok</html>", "url": _TARGET_URL}]
+        with patch("page_analyser.requests.post", return_value=resp):
+            html = _fetch_html(_TARGET_URL)
+        assert html == "<html>ok</html>"
+
 
 # ---------------------------------------------------------------------------
 # Tests: analyse_page — missing API keys
