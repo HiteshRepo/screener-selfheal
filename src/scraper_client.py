@@ -302,7 +302,8 @@ class BrightDataClient:
                     if isinstance(val, (int, float)):
                         return float(val)
                     if isinstance(val, dict):
-                        return float(val.get("amount", 0))
+                        # Bright Data Money objects serialise as {"value": ..., "currency": ...}
+                        return float(val.get("value") or val.get("amount") or 0)
                     try:
                         return float(str(val).replace(",", ""))
                     except (ValueError, TypeError):
