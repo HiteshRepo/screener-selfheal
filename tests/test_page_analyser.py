@@ -1,6 +1,5 @@
-"""Tests for src/page_analyser.py — analyse_page() with mocked HTTP and OpenAI."""
+"""Tests for src/page_analyser.py — analyse_page() with mocked Bright Data Crawl API and OpenAI."""
 
-import logging
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -15,7 +14,7 @@ if _ROOT not in sys.path:
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
-from page_analyser import PageFetchError, analyse_page  # noqa: E402
+from page_analyser import PageFetchError, _fetch_html, analyse_page  # noqa: E402
 from src.scraper_client import ConfigurationError  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -23,6 +22,7 @@ from src.scraper_client import ConfigurationError  # noqa: E402
 # ---------------------------------------------------------------------------
 
 _TARGET_URL = "https://www.screener.in/screens/dividend-yield/"
+_SAMPLE_HTML = "<html><body>test</body></html>"
 
 # Required schema field names (matches data/schema.json)
 _SCHEMA_FIELDS = [
@@ -36,10 +36,16 @@ _SCHEMA_FIELDS = [
 ]
 
 
-def _make_http_response(status_code: int = 200, text: str = "<html>test</html>") -> MagicMock:
+def _crawl_response(html: str = _SAMPLE_HTML, status_code: int = 200) -> MagicMock:
+    """Build a mock for the Bright Data Crawl API response."""
     resp = MagicMock()
+    resp.ok = 200 <= status_code < 300
     resp.status_code = status_code
-    resp.text = text
+    resp.text = html
+    resp.json.return_value = [{"html": html, "url": _TARGET_URL}]
+    resp.raise_for_status = MagicMock(
+        side_effect=None if resp.ok else Exception(f"HTTP {status_code}")
+    )
     return resp
 
 
@@ -52,88 +58,137 @@ def _make_openai_completion(content: str) -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# Tests: missing API key
+# Tests: _fetch_html — Bright Data Crawl API
+# ---------------------------------------------------------------------------
+
+
+class TestFetchHtml:
+    def test_raises_when_bright_data_token_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("BRIGHT_DATA_API_TOKEN", raising=False)
+        with pytest.raises(ConfigurationError, match="BRIGHT_DATA_API_TOKEN"):
+            _fetch_html(_TARGET_URL)
+
+    def test_posts_to_crawl_api_with_correct_url(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        with patch("page_analyser.requests.post", return_value=_crawl_response()) as mock_post:
+            _fetch_html(_TARGET_URL)
+        call_kwargs = mock_post.call_args
+        assert "datasets/v3/scrape" in call_kwargs.args[0]
+
+    def test_sends_target_url_in_request_body(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        with patch("page_analyser.requests.post", return_value=_crawl_response()) as mock_post:
+            _fetch_html(_TARGET_URL)
+        body = mock_post.call_args.kwargs.get("json", {})
+        assert any(inp.get("url") == _TARGET_URL for inp in body.get("input", []))
+
+    def test_returns_html_from_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        with patch("page_analyser.requests.post", return_value=_crawl_response("<html>ok</html>")):
+            html = _fetch_html(_TARGET_URL)
+        assert html == "<html>ok</html>"
+
+    def test_raises_page_fetch_error_on_non_2xx(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        bad_resp = _crawl_response(status_code=403)
+        with patch("page_analyser.requests.post", return_value=bad_resp):
+            with pytest.raises(PageFetchError, match="403"):
+                _fetch_html(_TARGET_URL)
+
+    def test_raises_page_fetch_error_when_html_key_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        resp = MagicMock()
+        resp.ok = True
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = [{"url": _TARGET_URL}]  # no html/content/body/markdown
+        with patch("page_analyser.requests.post", return_value=resp):
+            with pytest.raises(PageFetchError, match="Could not extract HTML"):
+                _fetch_html(_TARGET_URL)
+
+    def test_raises_page_fetch_error_when_results_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
+        resp = MagicMock()
+        resp.ok = True
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = []
+        resp.text = "[]"
+        with patch("page_analyser.requests.post", return_value=resp):
+            with pytest.raises(PageFetchError, match="unexpected response"):
+                _fetch_html(_TARGET_URL)
+
+
+# ---------------------------------------------------------------------------
+# Tests: analyse_page — missing API keys
 # ---------------------------------------------------------------------------
 
 
 class TestAnalysePageMissingApiKey:
-    def test_missing_api_key_raises_configuration_error(
+    def test_missing_openai_key_raises_configuration_error(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        with pytest.raises(ConfigurationError):
+        with pytest.raises(ConfigurationError, match="OPENAI_API_KEY"):
+            analyse_page(_TARGET_URL)
+
+    def test_missing_bright_data_token_raises_configuration_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.delenv("BRIGHT_DATA_API_TOKEN", raising=False)
+        with pytest.raises(ConfigurationError, match="BRIGHT_DATA_API_TOKEN"):
             analyse_page(_TARGET_URL)
 
 
 # ---------------------------------------------------------------------------
-# Tests: HTTP fetch behaviour
+# Tests: analyse_page — HTML fetch and OpenAI call
 # ---------------------------------------------------------------------------
 
 
-class TestAnalysePageHttpFetch:
-    def test_requests_get_called_once_with_target_url(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+class TestAnalysePageBehaviour:
+    def _run(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        html: str = _SAMPLE_HTML,
+        openai_content: str = "fix description",
+    ) -> str:
+        monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
         with (
-            patch("page_analyser.requests.get", return_value=_make_http_response()) as mock_get,
+            patch("page_analyser.requests.post", return_value=_crawl_response(html)),
             patch("page_analyser.OpenAI") as mock_openai_cls,
         ):
             mock_openai_cls.return_value.chat.completions.create.return_value = (
-                _make_openai_completion("fix description")
+                _make_openai_completion(openai_content)
             )
-            analyse_page(_TARGET_URL)
-        mock_get.assert_called_once_with(_TARGET_URL)
+            return analyse_page(_TARGET_URL)
 
-    def test_raises_page_fetch_error_on_404(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        with (
-            patch(
-                "page_analyser.requests.get",
-                return_value=_make_http_response(status_code=404),
-            ),
-            patch("page_analyser.OpenAI") as mock_openai_cls,
-        ):
-            with pytest.raises(PageFetchError) as exc_info:
-                analyse_page(_TARGET_URL)
-        assert _TARGET_URL in str(exc_info.value)
-        assert "404" in str(exc_info.value)
-        mock_openai_cls.return_value.chat.completions.create.assert_not_called()
+    def test_returns_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert isinstance(self._run(monkeypatch), str)
 
-    def test_raises_page_fetch_error_on_500(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        with (
-            patch(
-                "page_analyser.requests.get",
-                return_value=_make_http_response(status_code=500),
-            ),
-            patch("page_analyser.OpenAI") as mock_openai_cls,
-        ):
-            with pytest.raises(PageFetchError) as exc_info:
-                analyse_page(_TARGET_URL)
-        assert _TARGET_URL in str(exc_info.value)
-        assert "500" in str(exc_info.value)
-        mock_openai_cls.return_value.chat.completions.create.assert_not_called()
-
-    def test_returns_string_le_900_chars_on_200(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        long_content = "z" * 1000
-        with (
-            patch("page_analyser.requests.get", return_value=_make_http_response()),
-            patch("page_analyser.OpenAI") as mock_openai_cls,
-        ):
-            mock_openai_cls.return_value.chat.completions.create.return_value = (
-                _make_openai_completion(long_content)
-            )
-            result = analyse_page(_TARGET_URL)
-        assert isinstance(result, str)
+    def test_result_capped_at_900_chars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        result = self._run(monkeypatch, openai_content="z" * 1200)
         assert len(result) <= 900
+
+    def test_short_response_returned_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        short = "x" * 500
+        assert self._run(monkeypatch, openai_content=short) == short
+
+    def test_long_response_truncated_to_900(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert len(self._run(monkeypatch, openai_content="y" * 1200)) == 900
 
 
 # ---------------------------------------------------------------------------
@@ -142,10 +197,9 @@ class TestAnalysePageHttpFetch:
 
 
 class TestAnalysePagePromptContent:
-    def _capture_prompt(
-        self, monkeypatch: pytest.MonkeyPatch, html: str
-    ) -> str:
+    def _capture_prompt(self, monkeypatch: pytest.MonkeyPatch, html: str) -> str:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("BRIGHT_DATA_API_TOKEN", "test-bd-token")
         captured: list[str] = []
 
         def fake_create(**kwargs):
@@ -154,7 +208,7 @@ class TestAnalysePagePromptContent:
             return _make_openai_completion("result")
 
         with (
-            patch("page_analyser.requests.get", return_value=_make_http_response(text=html)),
+            patch("page_analyser.requests.post", return_value=_crawl_response(html)),
             patch("page_analyser.OpenAI") as mock_openai_cls,
         ):
             mock_openai_cls.return_value.chat.completions.create.side_effect = fake_create
@@ -174,40 +228,3 @@ class TestAnalysePagePromptContent:
         html = f"<html><div class='{unique_marker}'>data</div></html>"
         prompt = self._capture_prompt(monkeypatch, html=html)
         assert unique_marker in prompt
-
-
-# ---------------------------------------------------------------------------
-# Tests: 900-character truncation
-# ---------------------------------------------------------------------------
-
-
-class TestAnalysePageTruncation:
-    def test_short_response_returned_unchanged(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        short_desc = "x" * 500
-        with (
-            patch("page_analyser.requests.get", return_value=_make_http_response()),
-            patch("page_analyser.OpenAI") as mock_openai_cls,
-        ):
-            mock_openai_cls.return_value.chat.completions.create.return_value = (
-                _make_openai_completion(short_desc)
-            )
-            result = analyse_page(_TARGET_URL)
-        assert result == short_desc
-
-    def test_long_response_truncated_to_900_chars(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        long_desc = "y" * 1200
-        with (
-            patch("page_analyser.requests.get", return_value=_make_http_response()),
-            patch("page_analyser.OpenAI") as mock_openai_cls,
-        ):
-            mock_openai_cls.return_value.chat.completions.create.return_value = (
-                _make_openai_completion(long_desc)
-            )
-            result = analyse_page(_TARGET_URL)
-        assert len(result) == 900

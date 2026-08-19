@@ -1,4 +1,4 @@
-"""Page analyser: fetch target URL HTML and call OpenAI to describe CSS/structural changes."""
+"""Page analyser: fetch target URL HTML via Bright Data Crawl API and call OpenAI to describe CSS/structural changes."""
 
 import json
 import logging
@@ -16,9 +16,13 @@ _SCHEMA_PATH = Path(__file__).parent.parent / "data" / "schema.json"
 _MAX_HTML_CHARS = 30_000  # safe token-budget approximation (~7 500 tokens)
 _MAX_FIX_CHARS = 900
 
+_BRIGHT_DATA_BASE_URL = "https://api.brightdata.com"
+_BRIGHT_DATA_CRAWL_DATASET_ID = "gd_m6gjtfmeh43we6cqc"
+_CRAWL_TIMEOUT = 60  # seconds
+
 
 class PageFetchError(Exception):
-    """Raised when the target URL returns a non-200 HTTP response."""
+    """Raised when the target URL cannot be fetched."""
 
 
 def _load_schema_fields() -> list[str]:
@@ -27,8 +31,64 @@ def _load_schema_fields() -> list[str]:
     return list(schema.get("properties", {}).keys())
 
 
+def _fetch_html(target_url: str) -> str:
+    """Fetch HTML from *target_url* via Bright Data Crawl API.
+
+    Bright Data's infrastructure can reach sites (e.g. screener.in) that
+    block GitHub Actions IP ranges, so we route the fetch through their
+    Crawl API rather than using a direct requests.get().
+
+    Raises:
+        ConfigurationError: if BRIGHT_DATA_API_TOKEN is not set.
+        PageFetchError: if the Crawl API call fails or returns no HTML.
+    """
+    token = os.environ.get("BRIGHT_DATA_API_TOKEN")
+    if not token:
+        raise ConfigurationError("BRIGHT_DATA_API_TOKEN is not set in the environment.")
+
+    response = requests.post(
+        f"{_BRIGHT_DATA_BASE_URL}/datasets/v3/scrape",
+        params={
+            "dataset_id": _BRIGHT_DATA_CRAWL_DATASET_ID,
+            "notify": "false",
+            "include_errors": "true",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={"input": [{"url": target_url}], "limit_per_input": None},
+        timeout=_CRAWL_TIMEOUT,
+    )
+
+    if not response.ok:
+        raise PageFetchError(
+            f"Bright Data Crawl API returned HTTP {response.status_code}: {response.text[:200]}"
+        )
+
+    results = response.json()
+    if not isinstance(results, list) or not results:
+        raise PageFetchError(
+            f"Bright Data Crawl API returned unexpected response: {response.text[:200]}"
+        )
+
+    item = results[0]
+    html = (
+        item.get("html")
+        or item.get("content")
+        or item.get("body")
+        or item.get("markdown")
+    )
+    if not html:
+        raise PageFetchError(
+            f"Could not extract HTML from Crawl API response. Keys present: {list(item.keys())}"
+        )
+
+    return html
+
+
 def analyse_page(target_url: str) -> str:
-    """Fetch *target_url*, call OpenAI gpt-4o, and return a fix description (≤900 chars).
+    """Fetch *target_url* via Bright Data, call OpenAI gpt-4o, and return a fix description (≤900 chars).
 
     Args:
         target_url: URL of the page to analyse.
@@ -37,17 +97,16 @@ def analyse_page(target_url: str) -> str:
         String describing what changed and how selectors should be updated (at most 900 chars).
 
     Raises:
-        ConfigurationError: if OPENAI_API_KEY is not set in the environment.
+        ConfigurationError: if OPENAI_API_KEY or BRIGHT_DATA_API_TOKEN is not set.
+        PageFetchError: if the page cannot be fetched via the Crawl API.
     """
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise ConfigurationError("OPENAI_API_KEY is not set in the environment.")
 
-    response = requests.get(target_url)
-    if response.status_code != 200:
-        raise PageFetchError(f"GET {target_url} returned HTTP {response.status_code}")
+    html = _fetch_html(target_url)
+    html = html[:_MAX_HTML_CHARS]
 
-    html = response.text[:_MAX_HTML_CHARS]
     schema_fields = _load_schema_fields()
     fields_str = ", ".join(schema_fields)
 
