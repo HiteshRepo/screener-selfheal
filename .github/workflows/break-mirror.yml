@@ -1,0 +1,44 @@
+name: Break Mirror
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  break-mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect current layout
+        run: |
+          if grep -q "layout: v1" demo/mirror/index.html; then
+            echo "CURRENT_LAYOUT=v1" >> "$GITHUB_ENV"
+            echo "NEXT_LAYOUT=v2" >> "$GITHUB_ENV"
+          else
+            echo "CURRENT_LAYOUT=v2" >> "$GITHUB_ENV"
+            echo "NEXT_LAYOUT=v1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Swap layout
+        run: |
+          if [ "$CURRENT_LAYOUT" = "v1" ]; then
+            cp demo/mirror/v2.html demo/mirror/index.html
+          else
+            cp demo/mirror/v1.html demo/mirror/index.html
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add demo/mirror/index.html
+          git commit -m "chore: switch mirror layout to v${NEXT_LAYOUT} [skip ci]"
+          git push origin main
+
+      - name: Write step summary
+        run: echo "Mirror is now layout v${NEXT_LAYOUT}" >> "$GITHUB_STEP_SUMMARY"
