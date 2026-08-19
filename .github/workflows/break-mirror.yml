@@ -49,7 +49,7 @@ jobs:
             --body "Automated layout swap from ${CURRENT_LAYOUT} to ${NEXT_LAYOUT} for self-heal demo." \
             --base main \
             --head "$BRANCH"
-          gh pr merge "$BRANCH" --auto --squash
+          gh pr merge "$BRANCH" --squash --delete-branch
 
       - name: Write step summary
         run: echo "Mirror is now layout ${NEXT_LAYOUT}" >> "$GITHUB_STEP_SUMMARY"
