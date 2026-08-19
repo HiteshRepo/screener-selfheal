@@ -25,6 +25,83 @@ class PageFetchError(Exception):
     """Raised when the target URL cannot be fetched."""
 
 
+# Exact JavaScript parser code for each demo mirror layout.
+# Used as a deterministic fallback when the OpenAI-generated prompt fails to
+# produce a working refactor. Keyed by the layout marker found in the HTML.
+_DEMO_PARSER_JS: dict[str, str] = {
+    "layout: v1": """\
+return {
+  stocks: $('table.data-table tbody tr').toArray().map(row => {
+    let $row = $(row);
+    return {
+      company_name: $row.find('td:nth-child(2) a').text_sane(),
+      ticker: null,
+      exchange: null,
+      cmp: +$row.find('td:nth-child(3)').text_sane().replace(/,/g, '') || null,
+      pe_ratio: +$row.find('td:nth-child(4)').text_sane() || null,
+      market_cap_cr: $row.find('td:nth-child(5)').text_sane(),
+      dividend_yield_pct: +$row.find('td:nth-child(6)').text_sane() || null,
+      roce_pct: +$row.find('td:nth-child(7)').text_sane() || null,
+      roe_pct: +$row.find('td:nth-child(8)').text_sane() || null,
+      sales_growth_pct: $row.find('td:nth-child(9)').text_sane(),
+      scraped_at: new Date().toISOString(),
+      source_url: input.url
+    };
+  })
+};""",
+    "layout: v2": """\
+return {
+  stocks: $('.mirror-rows tr').toArray().map(row => {
+    let $row = $(row);
+    return {
+      company_name: $row.find('td:nth-child(2) a').text_sane(),
+      ticker: null,
+      exchange: null,
+      cmp: +$row.find('td:nth-child(3)').text_sane().replace(/,/g, '') || null,
+      pe_ratio: +$row.find('td:nth-child(4)').text_sane() || null,
+      market_cap_cr: $row.find('td:nth-child(5)').text_sane(),
+      roce_pct: +$row.find('td:nth-child(6)').text_sane() || null,
+      roe_pct: +$row.find('td:nth-child(7)').text_sane() || null,
+      dividend_yield_pct: +$row.find('td:nth-child(8)').text_sane() || null,
+      sales_growth_pct: $row.find('td:nth-child(9)').text_sane(),
+      scraped_at: new Date().toISOString(),
+      source_url: input.url
+    };
+  })
+};""",
+}
+
+
+def generate_fallback_prompt(target_url: str) -> str | None:
+    """Return a deterministic refactor prompt for demo mirror pages, or None.
+
+    Fetches *target_url*, looks for a ``<!-- layout: v1 -->`` or
+    ``<!-- layout: v2 -->`` marker, and returns a prompt containing the exact
+    JavaScript parser code for that layout.  This is used as a fallback when
+    the OpenAI-generated natural-language prompt fails to produce a working
+    refactor on the first self-heal attempt.
+
+    Returns None for non-demo pages so the caller can skip the fallback cycle.
+    """
+    try:
+        html = _fetch_html(target_url)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Fallback: could not fetch HTML from %s: %s", target_url, exc)
+        return None
+
+    for marker, parser_js in _DEMO_PARSER_JS.items():
+        if marker in html:
+            logger.info("Fallback: demo mirror marker '%s' detected in %s.", marker, target_url)
+            return (
+                "The scraper selectors are broken for the current page layout. "
+                "Replace the entire parser code with exactly this JavaScript — "
+                "do not modify it:\n\n"
+                f"{parser_js}"
+            )
+
+    return None
+
+
 def _load_schema_fields() -> list[str]:
     with open(_SCHEMA_PATH, "r", encoding="utf-8") as fh:
         schema = json.load(fh)

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 # Ensure both the project root and src/ are importable regardless of invocation style.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -16,7 +17,7 @@ if _HERE not in sys.path:
 
 from scraper_client import BrightDataClient, ConfigurationError  # noqa: E402
 from health_check import health_check, HealthStatus  # noqa: E402
-from page_analyser import analyse_page  # noqa: E402
+from page_analyser import analyse_page, generate_fallback_prompt  # noqa: E402
 
 _OUTPUT_PATH = "data/latest.json"
 _DEFAULT_TARGET_URL = "https://www.screener.in/screens/3/highest-dividend-yield-shares/"
@@ -95,10 +96,9 @@ def main(argv: list[str] | None = None) -> int:
         # Wait for the refactored template to propagate before triggering the
         # second scrape. Without this delay, the collector may still run the
         # old template and return 0 records even though the refactor succeeded.
-        import time as _time
         _REFACTOR_PROPAGATION_DELAY = 15
         logger.info("Waiting %ds for refactored template to propagate…", _REFACTOR_PROPAGATION_DELAY)
-        _time.sleep(_REFACTOR_PROPAGATION_DELAY)
+        time.sleep(_REFACTOR_PROPAGATION_DELAY)
     except Exception as exc:  # noqa: BLE001
         logger.error("Self-heal step failed: %s", exc)
         logger.info(
@@ -129,7 +129,67 @@ def main(argv: list[str] | None = None) -> int:
         second_report.reason,
     )
 
-    recovery_status = "recovered" if second_report.status == HealthStatus.HEALTHY else "failed"
+    if second_report.status == HealthStatus.HEALTHY:
+        logger.info(
+            "SUMMARY | original_status=%s | fix_prompt=%s | recovery_status=recovered",
+            initial_report.status.value,
+            fix_prompt,
+        )
+        return 0
+
+    # --- Fallback cycle: deterministic JS parser for demo mirror pages ---
+    # If the OpenAI-generated prompt didn't produce a working refactor, try once
+    # more with an exact JavaScript parser matched to the detected layout marker.
+    logger.warning(
+        "Second health check failed — attempting fallback refactor for demo mirror pages."
+    )
+    fallback_prompt = generate_fallback_prompt(analyse_url)
+    if fallback_prompt is None:
+        logger.info(
+            "SUMMARY | original_status=%s | fix_prompt=%s | recovery_status=failed",
+            initial_report.status.value,
+            fix_prompt,
+        )
+        logger.error("Recovery failed — second health check: %s", second_report.reason)
+        return 1
+
+    try:
+        fallback_job_id = client.refactor_template(fallback_prompt)
+        client.poll_refactor(fallback_job_id)
+        client.approve_refactor(fallback_job_id)
+        logger.info("Waiting %ds for fallback template to propagate…", _REFACTOR_PROPAGATION_DELAY)
+        time.sleep(_REFACTOR_PROPAGATION_DELAY)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Fallback refactor step failed: %s", exc)
+        logger.info(
+            "SUMMARY | original_status=%s | fix_prompt=%s | recovery_status=failed",
+            initial_report.status.value,
+            fix_prompt,
+        )
+        return 1
+
+    # --- Third download cycle ---
+    try:
+        dataset_id3 = client.trigger_run(target_url=args.target_url)
+        client.poll_until_ready(dataset_id3)
+        client.download_results(dataset_id3, output_path=_OUTPUT_PATH)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Third download cycle failed: %s", exc)
+        logger.info(
+            "SUMMARY | original_status=%s | fix_prompt=%s | recovery_status=failed",
+            initial_report.status.value,
+            fix_prompt,
+        )
+        return 1
+
+    third_report = health_check(_load_envelope(_OUTPUT_PATH))
+    logger.info(
+        "Third health: status=%s reason=%s",
+        third_report.status.value,
+        third_report.reason,
+    )
+
+    recovery_status = "recovered_via_fallback" if third_report.status == HealthStatus.HEALTHY else "failed"
     logger.info(
         "SUMMARY | original_status=%s | fix_prompt=%s | recovery_status=%s",
         initial_report.status.value,
@@ -137,8 +197,8 @@ def main(argv: list[str] | None = None) -> int:
         recovery_status,
     )
 
-    if second_report.status != HealthStatus.HEALTHY:
-        logger.error("Recovery failed — second health check: %s", second_report.reason)
+    if third_report.status != HealthStatus.HEALTHY:
+        logger.error("Recovery failed — third health check: %s", third_report.reason)
         return 1
 
     return 0
