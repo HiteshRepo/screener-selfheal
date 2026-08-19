@@ -394,14 +394,33 @@ class BrightDataClient:
             The job ID string returned by the API.
 
         Raises:
-            RefactorError: if the API returns a non-2xx status.
+            RefactorError: if the API returns a non-2xx status after all retries.
         """
-        response = self._session.post(
-            f"{_BASE_URL}/dca/collectors/{self._collector_id}/refactor_template",
-            json={"prompt": prompt},
-        )
+        _MAX_RETRIES = 3
+        _RETRY_DELAY = 10  # seconds between retries on 5xx errors
 
-        if not response.ok:
+        for attempt in range(1, _MAX_RETRIES + 1):
+            response = self._session.post(
+                f"{_BASE_URL}/dca/collectors/{self._collector_id}/refactor_template",
+                json={"prompt": prompt},
+            )
+
+            if response.ok:
+                break
+
+            is_server_error = response.status_code >= 500
+            if is_server_error and attempt < _MAX_RETRIES:
+                logger.warning(
+                    "refactor_template HTTP %d on attempt %d/%d — retrying in %ds: %s",
+                    response.status_code,
+                    attempt,
+                    _MAX_RETRIES,
+                    _RETRY_DELAY,
+                    response.text[:200],
+                )
+                time.sleep(_RETRY_DELAY)
+                continue
+
             raise RefactorError(
                 f"refactor_template failed with HTTP {response.status_code}: {response.text}"
             )
