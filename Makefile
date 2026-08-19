@@ -2,7 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal crawl-check clean
+.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal crawl-check automate-stage2 clean
 
 ## Setup
 
@@ -48,6 +48,9 @@ selfheal:
 
 crawl-check:
 	@set -a && source .env && set +a && $(PYTHON) scripts/crawl_check.py
+
+automate-stage2:
+	@set -a && source .env && set +a && $(PYTHON) scripts/automate_stage2.py
 
 ## Cleanup
 

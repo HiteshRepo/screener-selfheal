@@ -76,9 +76,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # --- Self-heal path (at most one attempt) ---
+    # Prefer a sample company page URL (where stock_results was empty) over the
+    # screen listing URL — the company page is where the selector failure occurs.
+    envelope = _load_envelope(_OUTPUT_PATH)
+    analyse_url = envelope.get("meta", {}).get("sample_company_url") or effective_url
+    if analyse_url != effective_url:
+        logger.info("Analysing company page instead of screen listing: %s", analyse_url)
+
     fix_prompt: str = ""
     try:
-        fix_prompt = analyse_page(effective_url)
+        fix_prompt = analyse_page(analyse_url)
         logger.info("Page analysis complete — fix_prompt length=%d", len(fix_prompt))
 
         job_id = client.refactor_template(fix_prompt)
