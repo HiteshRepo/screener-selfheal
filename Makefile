@@ -2,7 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal clean
+.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal crawl-check clean
 
 ## Setup
 
@@ -41,23 +41,13 @@ diff:
 	$(PYTHON) src/run_diff.py
 
 smoke: scrape diff
-	@$(PYTHON) - <<'EOF'
-import json, sys
-sys.path.insert(0, 'src')
-from schema import validate_record
-with open('data/latest.json', encoding='utf-8') as fh:
-    envelope = json.load(fh)
-records = envelope.get('records', [])
-meta = envelope.get('meta', {})
-assert meta.get('record_count') == len(records), \
-    f"meta.record_count {meta['record_count']} != {len(records)}"
-for r in records:
-    validate_record(r)
-print(f"OK — {len(records)} record(s) validated.")
-EOF
+	$(PYTHON) scripts/smoke_check.py
 
 selfheal:
 	@set -a && source .env && set +a && $(PYTHON) src/run_selfheal.py
+
+crawl-check:
+	@set -a && source .env && set +a && $(PYTHON) scripts/crawl_check.py
 
 ## Cleanup
 

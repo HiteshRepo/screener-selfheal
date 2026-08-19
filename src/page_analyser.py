@@ -76,7 +76,8 @@ def _fetch_html(target_url: str) -> str:
             f"Bright Data Crawl API returned unexpected response: {response.text[:200]}"
         )
     html = (
-        item.get("html")
+        item.get("page_html")
+        or item.get("html")
         or item.get("content")
         or item.get("body")
         or item.get("markdown")
