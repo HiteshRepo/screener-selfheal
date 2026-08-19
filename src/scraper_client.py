@@ -239,7 +239,7 @@ class BrightDataClient:
     def _normalize_records(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert Bright Data's raw API response to our canonical record schema.
 
-        Bright Data's collector returns records in one of two formats:
+        Bright Data's collector returns records in one of four formats:
 
         **Canonical** (already has ``ticker`` and financial fields):
         Returned as-is with no transformation.
@@ -251,6 +251,14 @@ class BrightDataClient:
         Only records with non-empty ``stock_results`` are kept; empty ones are
         dropped so that ``record_count`` correctly reflects usable data and the
         self-heal trigger fires when needed.
+
+        **Demo mirror — flat** (``company_name`` present, no ``ticker``/``product_page_url``):
+        Produced by the demo collector after a self-heal rewrite. A synthetic
+        ticker is derived from ``company_name`` so downstream code has a stable key.
+
+        **Demo mirror — nested** (``{"stocks": [...]}`` wrapper):
+        Some self-heal rewrites emit a top-level ``stocks`` array. Unwrapped and
+        re-normalised recursively.
 
         Returns:
             List of records conforming to the canonical schema (or as close as
@@ -267,6 +275,34 @@ class BrightDataClient:
             if _BD_INTERNAL & first.keys():
                 return [{k: v for k, v in r.items() if k not in _BD_INTERNAL} for r in raw]
             return raw
+
+        # Demo mirror format: the self-heal loop rewrites the Bright Data parser
+        # automatically via refactor_template, so we cannot control whether it
+        # emits a flat list or a nested {"stocks": [...]} shape. We handle both
+        # here so _normalize_records stays robust across self-heal cycles.
+        # Records are identified by having "company_name" but no "ticker" or
+        # "product_page_url". A synthetic ticker is derived from company_name so
+        # downstream health_check and diff_engine have a stable identity key.
+        if "company_name" in first and "product_page_url" not in first:
+            normalised = []
+            for r in raw:
+                name = r.get("company_name", "")
+                synthetic_ticker = name.upper().replace(" ", "_")[:20]
+                normalised.append({"ticker": synthetic_ticker, **r})
+            logger.info(
+                "Demo mirror format detected — normalised %d record(s) with synthetic tickers.",
+                len(normalised),
+            )
+            return normalised
+
+        # Nested demo format: {"stocks": [...]} — unwrap and recurse
+        if "stocks" in first and isinstance(first.get("stocks"), list):
+            unwrapped = [row for r in raw for row in r.get("stocks", [])]
+            logger.info(
+                "Demo mirror nested format detected — unwrapped %d record(s).",
+                len(unwrapped),
+            )
+            return self._normalize_records(unwrapped)
 
         # URL-based format from Bright Data's collector
         if "product_page_url" not in first:
