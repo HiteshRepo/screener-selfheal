@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -191,11 +192,20 @@ class BrightDataClient:
         )
         response.raise_for_status()
 
-        records: list[dict[str, Any]] = response.json()
-        if not isinstance(records, list):
-            records = []
+        raw: list[dict[str, Any]] = response.json()
+        if not isinstance(raw, list):
+            raw = []
 
-        if not records:
+        records = self._normalize_records(raw)
+
+        if not records and raw:
+            logger.warning(
+                "Dataset %s: %d raw record(s) fetched but 0 valid after normalisation. "
+                "screener.in page structure may have changed — self-heal should trigger.",
+                dataset_id,
+                len(raw),
+            )
+        elif not records:
             logger.warning("Dataset %s returned an empty result set.", dataset_id)
 
         envelope: dict[str, Any] = {
@@ -215,6 +225,83 @@ class BrightDataClient:
 
         logger.info("Wrote %d record(s) to %s", len(records), out)
         return len(records)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _normalize_records(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Convert Bright Data's raw API response to our canonical record schema.
+
+        Bright Data's collector returns records in one of two formats:
+
+        **Canonical** (already has ``ticker`` and financial fields):
+        Returned as-is with no transformation.
+
+        **URL-based** (collector found company pages but scraped them separately):
+        Each record has ``product_page_url``, ``stock_results``, and ``input``.
+        ``stock_results`` holds the actual financial data extracted from the
+        company page — when it is empty the scrape failed (page structure changed).
+        Only records with non-empty ``stock_results`` are kept; empty ones are
+        dropped so that ``record_count`` correctly reflects usable data and the
+        self-heal trigger fires when needed.
+
+        Returns:
+            List of records conforming to the canonical schema (or as close as
+            the raw data allows).
+        """
+        if not raw:
+            return raw
+
+        first = raw[0]
+
+        # Fast path: already canonical
+        if "ticker" in first:
+            return raw
+
+        # URL-based format from Bright Data's collector
+        if "product_page_url" not in first:
+            logger.warning(
+                "Unrecognised record format from Bright Data. "
+                "Top-level keys: %s. Records cannot be normalised.",
+                sorted(first.keys()),
+            )
+            return []
+
+        normalised: list[dict[str, Any]] = []
+        skipped = 0
+
+        for r in raw:
+            stock_results = r.get("stock_results") or []
+            if not stock_results:
+                skipped += 1
+                continue
+
+            url = r.get("product_page_url", "")
+            path_parts = [p for p in urlparse(url).path.split("/") if p]
+            # Expected path: /company/{TICKER}[/consolidated]
+            if len(path_parts) < 2 or path_parts[0] != "company":
+                logger.warning("Cannot extract ticker from URL '%s' — skipping.", url)
+                skipped += 1
+                continue
+
+            ticker = path_parts[1]
+            data = stock_results[0] if isinstance(stock_results, list) else stock_results
+            normalised.append({
+                "ticker": ticker,
+                "source_url": url,
+                **data,
+            })
+
+        if skipped:
+            logger.warning(
+                "Skipped %d/%d record(s) with empty stock_results — "
+                "screener.in company page structure may have changed.",
+                skipped,
+                len(raw),
+            )
+
+        return normalised
 
     def refactor_template(self, prompt: str) -> str:
         """Send a fix prompt to the refactor endpoint and return the job ID.

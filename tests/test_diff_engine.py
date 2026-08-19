@@ -79,6 +79,59 @@ class TestLoadSnapshots:
 
 
 # ---------------------------------------------------------------------------
+# Tests: _normalize_records (ticker field alias handling)
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeRecords:
+    def _base_without_ticker(self, alias: str) -> dict:
+        r = {k: v for k, v in _BASE_RECORD.items() if k != "ticker"}
+        r[alias] = "ALPHA"
+        return r
+
+    def test_canonical_ticker_field_passes_through(self) -> None:
+        engine = DiffEngine()
+        records = [_BASE_RECORD]
+        result = engine._normalize_records(records)
+        assert result == records
+
+    def test_symbol_alias_normalised_to_ticker(self) -> None:
+        engine = DiffEngine()
+        record = self._base_without_ticker("symbol")
+        result = engine._normalize_records([record])
+        assert len(result) == 1
+        assert result[0]["ticker"] == "ALPHA"
+
+    def test_nse_code_alias_normalised_to_ticker(self) -> None:
+        engine = DiffEngine()
+        record = self._base_without_ticker("nse_code")
+        result = engine._normalize_records([record])
+        assert result[0]["ticker"] == "ALPHA"
+
+    def test_unknown_field_returns_empty_list(self) -> None:
+        engine = DiffEngine()
+        record = {k: v for k, v in _BASE_RECORD.items() if k != "ticker"}
+        record["unknown_field"] = "ALPHA"
+        result = engine._normalize_records([record])
+        assert result == []
+
+    def test_empty_records_returns_empty(self) -> None:
+        engine = DiffEngine()
+        assert engine._normalize_records([]) == []
+
+    def test_alias_record_works_end_to_end(self, tmp_path: Path) -> None:
+        """Records loaded via load_snapshots are normalised before diff."""
+        engine = DiffEngine()
+        record = self._base_without_ticker("symbol")
+        latest_path = tmp_path / "latest.json"
+        _write_envelope(latest_path, [record])
+        latest, previous = engine.load_snapshots(str(latest_path), str(tmp_path / "missing.json"))
+        result = engine.diff(latest=latest, previous=previous)
+        assert len(result.entered) == 1
+        assert result.entered[0].ticker == "ALPHA"
+
+
+# ---------------------------------------------------------------------------
 # Tests: diff — ENTERED
 # ---------------------------------------------------------------------------
 
