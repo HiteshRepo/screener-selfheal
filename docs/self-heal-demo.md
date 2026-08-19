@@ -14,37 +14,64 @@ The mirror will be live at:
 https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html
 ```
 
-## Step-by-Step
+## Prerequisites
 
-**Step 1 — Observe the failure**
+The following repo secrets must be configured:
 
-The mirror page (`demo/mirror/index.html`) has deliberate layout alterations:
-- Column header `"Dividend Yield"` renamed to `"Div. Yield (%)"`
-- Table wrapped in an extra `<div class="data-wrapper">` layer
-- CSS class `screener-table` renamed to `alt-table`
+| Secret | Purpose |
+|--------|---------|
+| `BRIGHT_DATA_API_TOKEN` | Bright Data API authentication |
+| `BRIGHT_DATA_DEMO_COLLECTOR_ID` | Collector ID for the demo mirror page (separate from production) |
+| `OPENAI_API_KEY` | OpenAI API key used by the self-heal script |
 
-When the original collector selectors are applied to the mirror, the extraction is empty or malformed.
+> **Note:** `BRIGHT_DATA_DEMO_COLLECTOR_ID` is distinct from the production `BRIGHT_DATA_COLLECTOR_ID`. Add it under **Settings → Secrets and variables → Actions → New repository secret** before running the demo.
 
-**Step 2 — Run the demo workflow**
+## How It Works
+
+The demo uses two static HTML fixtures with intentionally different DOM structures:
+
+- **`demo/mirror/v1.html`** — mirrors the original Screener.in layout (`table.data-table`, `#result` direct parent, header `"Dividend Yield"`). The demo collector's selectors work against this layout.
+- **`demo/mirror/v2.html`** — structurally altered layout (`table.screener-mirror`, nested inside `.table-outer-wrapper > .table-inner-container`, header `"Div. Yield (%)"`). The demo collector's selectors break against this layout.
+
+`demo/mirror/index.html` is the live GitHub Pages file. The `break-mirror.yml` workflow flips it between v1 and v2 on each run, creating a fresh selector mismatch every time — no manual Bright Data reset needed.
+
+## Step-by-Step Demo Sequence
+
+**Step 1 — Break the mirror**
+
+Trigger the `break-mirror.yml` workflow to swap the live layout to the opposite version:
 
 ```bash
-# Trigger via GitHub UI: Actions → Self-Healing Demo → Run workflow
+# Via GitHub UI: Actions → Break Mirror → Run workflow
 # OR via CLI:
-gh workflow run selfheal-demo.yml
+gh workflow run break-mirror.yml
 ```
 
-Observe `data/demo-latest.json` — it will be empty or contain malformed records, demonstrating the layout mismatch.
+The workflow detects the current layout, copies the alternate version to `index.html`, and commits with `[skip ci]`. GitHub Pages will serve the new layout within ~30 seconds.
 
-**Step 3 — Trigger Scraper Studio self-healing**
+**Step 2 — Run the self-heal loop**
 
-In the Bright Data Scraper Studio UI:
-1. Open the collector
-2. Point it at the mirror URL
-3. Use the re-prompt / self-healing flow to regenerate selectors
-4. Run again
+Trigger `selfheal-loop.yml` with `pages_just_updated` set to `true` so the workflow waits 30 seconds for Pages propagation before scraping:
 
-Observe `data/demo-latest.json` — the collector now correctly extracts the sample rows.
+```bash
+# Via GitHub UI: Actions → Self-Heal Loop → Run workflow
+#   target_url: https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html
+#   pages_just_updated: true
+# OR via CLI:
+gh workflow run selfheal-loop.yml \
+  -f target_url=https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html \
+  -f pages_just_updated=true
+```
 
-**Step 4 — Compare before/after**
+Because `target_url` contains `github.io`, the workflow automatically uses `BRIGHT_DATA_DEMO_COLLECTOR_ID` — no manual input needed.
 
-The before state is captured at `data/demo-before.json` (written at the start of the demo workflow before recovery). Use `python src/run_diff.py` with the demo paths to produce a change report.
+**Step 3 — Observe self-healing**
+
+Watch the workflow run. The self-heal script will:
+1. Detect that the current collector selectors return no data against the new layout
+2. Use the OpenAI API to generate updated selectors
+3. Push a PR with `data/latest.json` containing correctly extracted records
+
+**Step 4 — Repeat**
+
+Run `break-mirror.yml` again to flip back to the other layout, then trigger `selfheal-loop.yml` again. The demo is fully repeatable with no manual resets.
