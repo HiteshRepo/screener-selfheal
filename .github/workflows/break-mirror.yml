@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   break-mirror:
@@ -32,13 +33,23 @@ jobs:
             cp demo/mirror/v1.html demo/mirror/index.html
           fi
 
-      - name: Commit and push
+      - name: Commit and push via PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
+          BRANCH="chore/mirror-layout-${NEXT_LAYOUT}-$(date -u +%Y-%m-%dT%H-%M-%S)"
+          git checkout -b "$BRANCH"
           git add demo/mirror/index.html
-          git commit -m "chore: switch mirror layout to v${NEXT_LAYOUT} [skip ci]"
-          git push origin main
+          git commit -m "chore: switch mirror layout to ${NEXT_LAYOUT} [skip ci]"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: switch mirror layout to ${NEXT_LAYOUT} [skip ci]" \
+            --body "Automated layout swap from ${CURRENT_LAYOUT} to ${NEXT_LAYOUT} for self-heal demo." \
+            --base main \
+            --head "$BRANCH"
+          gh pr merge "$BRANCH" --auto --squash
 
       - name: Write step summary
-        run: echo "Mirror is now layout v${NEXT_LAYOUT}" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Mirror is now layout ${NEXT_LAYOUT}" >> "$GITHUB_STEP_SUMMARY"
