@@ -1,9 +1,10 @@
 {
   "meta": {
-    "scraped_at": "2026-08-19T07:07:39Z",
+    "scraped_at": "2026-08-19T09:16:00Z",
     "source_url": "https://www.screener.in/screens/3/highest-dividend-yield-shares/",
     "collector_id": "c_msvhzc3s2gixuk6k42",
-    "record_count": 0
+    "record_count": 0,
+    "sample_company_url": "https://www.screener.in/company/GICRE/consolidated/"
   },
   "records": []
 }
