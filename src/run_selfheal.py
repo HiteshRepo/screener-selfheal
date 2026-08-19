@@ -91,6 +91,14 @@ def main(argv: list[str] | None = None) -> int:
         job_id = client.refactor_template(fix_prompt)
         client.poll_refactor(job_id)
         client.approve_refactor(job_id)
+
+        # Wait for the refactored template to propagate before triggering the
+        # second scrape. Without this delay, the collector may still run the
+        # old template and return 0 records even though the refactor succeeded.
+        import time as _time
+        _REFACTOR_PROPAGATION_DELAY = 15
+        logger.info("Waiting %ds for refactored template to propagate…", _REFACTOR_PROPAGATION_DELAY)
+        _time.sleep(_REFACTOR_PROPAGATION_DELAY)
     except Exception as exc:  # noqa: BLE001
         logger.error("Self-heal step failed: %s", exc)
         logger.info(
