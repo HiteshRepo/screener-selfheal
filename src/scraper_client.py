@@ -198,7 +198,14 @@ class BrightDataClient:
 
         records = self._normalize_records(raw)
 
+        # Extract a sample company URL for self-heal page analysis when all
+        # records are skipped due to empty stock_results.
+        sample_company_url: str | None = None
         if not records and raw:
+            sample_company_url = next(
+                (r.get("product_page_url") for r in raw if r.get("product_page_url")),
+                None,
+            )
             logger.warning(
                 "Dataset %s: %d raw record(s) fetched but 0 valid after normalisation. "
                 "screener.in page structure may have changed — self-heal should trigger.",
@@ -208,17 +215,16 @@ class BrightDataClient:
         elif not records:
             logger.warning("Dataset %s returned an empty result set.", dataset_id)
 
-        envelope: dict[str, Any] = {
-            "meta": {
-                "scraped_at": datetime.now(timezone.utc).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                ),
-                "source_url": _DEFAULT_TARGET_URL,
-                "collector_id": self._collector_id,
-                "record_count": len(records),
-            },
-            "records": records,
+        meta: dict[str, Any] = {
+            "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "source_url": _DEFAULT_TARGET_URL,
+            "collector_id": self._collector_id,
+            "record_count": len(records),
         }
+        if sample_company_url:
+            meta["sample_company_url"] = sample_company_url
+
+        envelope: dict[str, Any] = {"meta": meta, "records": records}
 
         with open(out, "w", encoding="utf-8") as fh:
             json.dump(envelope, fh, indent=2, ensure_ascii=False)
