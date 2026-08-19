@@ -15,7 +15,7 @@ if _ROOT not in sys.path:
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
-from page_analyser import analyse_page  # noqa: E402
+from page_analyser import PageFetchError, analyse_page  # noqa: E402
 from src.scraper_client import ConfigurationError  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -85,25 +85,55 @@ class TestAnalysePageHttpFetch:
             analyse_page(_TARGET_URL)
         mock_get.assert_called_once_with(_TARGET_URL)
 
-    def test_non_200_response_logs_warning(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    def test_raises_page_fetch_error_on_404(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         with (
             patch(
                 "page_analyser.requests.get",
-                return_value=_make_http_response(status_code=404, text="<html></html>"),
+                return_value=_make_http_response(status_code=404),
             ),
             patch("page_analyser.OpenAI") as mock_openai_cls,
         ):
-            mock_openai_cls.return_value.chat.completions.create.return_value = (
-                _make_openai_completion("fix")
-            )
-            with caplog.at_level(logging.WARNING, logger="page_analyser"):
+            with pytest.raises(PageFetchError) as exc_info:
                 analyse_page(_TARGET_URL)
+        assert _TARGET_URL in str(exc_info.value)
+        assert "404" in str(exc_info.value)
+        mock_openai_cls.return_value.chat.completions.create.assert_not_called()
 
-        warning_messages = " ".join(r.message for r in caplog.records)
-        assert "404" in warning_messages or "Non-200" in warning_messages
+    def test_raises_page_fetch_error_on_500(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        with (
+            patch(
+                "page_analyser.requests.get",
+                return_value=_make_http_response(status_code=500),
+            ),
+            patch("page_analyser.OpenAI") as mock_openai_cls,
+        ):
+            with pytest.raises(PageFetchError) as exc_info:
+                analyse_page(_TARGET_URL)
+        assert _TARGET_URL in str(exc_info.value)
+        assert "500" in str(exc_info.value)
+        mock_openai_cls.return_value.chat.completions.create.assert_not_called()
+
+    def test_returns_string_le_900_chars_on_200(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        long_content = "z" * 1000
+        with (
+            patch("page_analyser.requests.get", return_value=_make_http_response()),
+            patch("page_analyser.OpenAI") as mock_openai_cls,
+        ):
+            mock_openai_cls.return_value.chat.completions.create.return_value = (
+                _make_openai_completion(long_content)
+            )
+            result = analyse_page(_TARGET_URL)
+        assert isinstance(result, str)
+        assert len(result) <= 900
 
 
 # ---------------------------------------------------------------------------
