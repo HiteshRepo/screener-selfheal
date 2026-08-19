@@ -17,110 +17,130 @@
       font-weight: bold;
     }
     h1 { font-size: 1.4rem; margin-bottom: 16px; }
-    #result { overflow-x: auto; }
-    table.data-table {
+    /* Intentionally renamed from .data-table to .screener-mirror to break original selectors */
+    .table-outer-wrapper {
+      overflow-x: auto;
+    }
+    .table-inner-container {
+      /* Extra wrapping div layer — increases DOM depth vs. original page */
+      padding: 0;
+    }
+    table.screener-mirror {
       border-collapse: collapse;
       width: 100%;
       background: #fff;
     }
-    table.data-table th,
-    table.data-table td {
+    table.screener-mirror th,
+    table.screener-mirror td {
       border: 1px solid #ddd;
       padding: 8px 12px;
       text-align: right;
     }
-    table.data-table th {
+    table.screener-mirror th {
       background: #e9ecef;
       text-align: center;
       font-size: 0.85rem;
     }
-    table.data-table td:nth-child(2) { text-align: left; }
-    table.data-table tr:nth-child(even) { background: #f2f2f2; }
+    table.screener-mirror td:nth-child(2) { text-align: left; }
+    table.screener-mirror tr:nth-child(even) { background: #f2f2f2; }
   </style>
 </head>
 <body>
-<!-- layout: v1 -->
+<!-- layout: v2 -->
 
   <div class="page-banner">
-    &#9888; TEST FIXTURE — not live data. This page mirrors the original
-    Screener.in layout so the demo collector works out of the box.
+    &#9888; TEST FIXTURE — not live data. This page intentionally alters the
+    table structure to demonstrate self-healing capability.
   </div>
 
   <h1>Highest Dividend-Yield Shares (Mirror — Test Fixture)</h1>
 
-  <div id="result">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>S.No.</th>
-          <th>Name</th>
-          <th>CMP Rs.</th>
-          <th>P/E</th>
-          <th>Mkt Cap Rs. Cr.</th>
-          <th>Dividend Yield</th>
-          <th>ROCE %</th>
-          <th>ROE %</th>
-          <th>Sales Gr. 3Yrs %</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr data-row-id="1">
-          <td>1</td>
-          <td><a href="#">Coal India Limited</a></td>
-          <td>458.75</td>
-          <td>7.4</td>
-          <td>2,82,310.50</td>
-          <td>6.12</td>
-          <td>54.20</td>
-          <td>49.80</td>
-          <td>3.10</td>
-        </tr>
-        <tr data-row-id="2">
-          <td>2</td>
-          <td><a href="#">Power Finance Corporation Limited</a></td>
-          <td>417.30</td>
-          <td>8.9</td>
-          <td>1,38,025.00</td>
-          <td>5.74</td>
-          <td>11.30</td>
-          <td>18.60</td>
-          <td>22.40</td>
-        </tr>
-        <tr data-row-id="3">
-          <td>3</td>
-          <td><a href="#">REC Limited</a></td>
-          <td>519.60</td>
-          <td>9.1</td>
-          <td>1,36,505.80</td>
-          <td>5.39</td>
-          <td>10.80</td>
-          <td>19.20</td>
-          <td>19.70</td>
-        </tr>
-        <tr data-row-id="4">
-          <td>4</td>
-          <td><a href="#">Oil and Natural Gas Corporation Limited</a></td>
-          <td>267.45</td>
-          <td>6.3</td>
-          <td>3,35,812.40</td>
-          <td>4.88</td>
-          <td>17.90</td>
-          <td>14.20</td>
-          <td>—</td>
-        </tr>
-        <tr data-row-id="5">
-          <td>5</td>
-          <td><a href="#">Indian Oil Corporation Limited</a></td>
-          <td>162.80</td>
-          <td>5.7</td>
-          <td>2,29,802.10</td>
-          <td>4.55</td>
-          <td>22.10</td>
-          <td>20.40</td>
-          <td>8.30</td>
-        </tr>
-      </tbody>
-    </table>
+  <!--
+    LAYOUT ALTERATIONS vs. original Screener.in page:
+    1. Table class renamed: "data-table" → "screener-mirror"
+    2. Extra wrapping <div> layers (.table-outer-wrapper > .table-inner-container)
+       increase DOM depth, breaking XPath like //div[@id="result"]/table
+    3. Column header renamed: "Dividend Yield" → "Div. Yield (%)"
+    4. Column order changed: ROCE and ROE columns appear BEFORE Div. Yield (%)
+  -->
+
+  <div class="table-outer-wrapper">
+    <div class="table-inner-container">
+      <table class="screener-mirror">
+        <thead>
+          <tr>
+            <th>S.No.</th>
+            <th>Name</th>
+            <th>CMP Rs.</th>
+            <th>P/E</th>
+            <th>Mkt Cap Rs. Cr.</th>
+            <!-- ROCE and ROE moved before Div. Yield — column order differs from original -->
+            <th>ROCE %</th>
+            <th>ROE %</th>
+            <!-- Renamed: original says "Dividend Yield", mirror says "Div. Yield (%)" -->
+            <th>Div. Yield (%)</th>
+            <th>Sales Gr. 3Yrs %</th>
+          </tr>
+        </thead>
+        <tbody class="mirror-rows">
+          <tr data-row-id="1">
+            <td>1</td>
+            <td><a href="#">Coal India Limited</a></td>
+            <td>458.75</td>
+            <td>7.4</td>
+            <td>2,82,310.50</td>
+            <td>54.20</td>
+            <td>49.80</td>
+            <td>6.12</td>
+            <td>3.10</td>
+          </tr>
+          <tr data-row-id="2">
+            <td>2</td>
+            <td><a href="#">Power Finance Corporation Limited</a></td>
+            <td>417.30</td>
+            <td>8.9</td>
+            <td>1,38,025.00</td>
+            <td>11.30</td>
+            <td>18.60</td>
+            <td>5.74</td>
+            <td>22.40</td>
+          </tr>
+          <tr data-row-id="3">
+            <td>3</td>
+            <td><a href="#">REC Limited</a></td>
+            <td>519.60</td>
+            <td>9.1</td>
+            <td>1,36,505.80</td>
+            <td>10.80</td>
+            <td>19.20</td>
+            <td>5.39</td>
+            <td>19.70</td>
+          </tr>
+          <tr data-row-id="4">
+            <td>4</td>
+            <td><a href="#">Oil and Natural Gas Corporation Limited</a></td>
+            <td>267.45</td>
+            <td>6.3</td>
+            <td>3,35,812.40</td>
+            <td>17.90</td>
+            <td>14.20</td>
+            <td>4.88</td>
+            <td>—</td>
+          </tr>
+          <tr data-row-id="5">
+            <td>5</td>
+            <td><a href="#">Indian Oil Corporation Limited</a></td>
+            <td>162.80</td>
+            <td>5.7</td>
+            <td>2,29,802.10</td>
+            <td>22.10</td>
+            <td>20.40</td>
+            <td>4.55</td>
+            <td>8.30</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
 </body>
