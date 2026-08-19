@@ -9,7 +9,12 @@ on:
       target_url:
         description: "Override the collector's default target URL"
         required: false
-        default: ""
+        default: "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html"
+      pages_just_updated:
+        description: "Set to true to wait 30s for GitHub Pages propagation before scraping"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -31,10 +36,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Wait for GitHub Pages propagation
+        if: ${{ inputs.pages_just_updated == true }}
+        run: sleep 30
+
+      - name: Select collector
+        run: |
+          if echo "${{ inputs.target_url }}" | grep -q "github.io"; then
+            echo "BRIGHT_DATA_COLLECTOR_ID=${{ secrets.BRIGHT_DATA_DEMO_COLLECTOR_ID }}" >> "$GITHUB_ENV"
+          else
+            echo "BRIGHT_DATA_COLLECTOR_ID=${{ secrets.BRIGHT_DATA_COLLECTOR_ID }}" >> "$GITHUB_ENV"
+          fi
+
       - name: Run self-heal loop
         env:
           BRIGHT_DATA_API_TOKEN: ${{ secrets.BRIGHT_DATA_API_TOKEN }}
-          BRIGHT_DATA_COLLECTOR_ID: ${{ secrets.BRIGHT_DATA_COLLECTOR_ID }}
+          BRIGHT_DATA_COLLECTOR_ID: ${{ env.BRIGHT_DATA_COLLECTOR_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           if [ -n "${{ inputs.target_url }}" ]; then
