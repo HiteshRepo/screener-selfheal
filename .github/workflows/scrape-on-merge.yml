@@ -56,9 +56,10 @@ jobs:
             --body "Automated scrape results from $(date -u +%Y-%m-%d)." \
             --base main \
             --head "$BRANCH"
-          gh pr merge "$BRANCH" --auto --squash
+          gh pr merge "$BRANCH" --squash --delete-branch || gh pr merge "$BRANCH" --auto --squash || true
 
       - name: Trigger self-heal if record count is zero
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
