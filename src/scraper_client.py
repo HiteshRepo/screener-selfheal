@@ -261,8 +261,11 @@ class BrightDataClient:
 
         first = raw[0]
 
-        # Fast path: already canonical
+        # Fast path: already canonical — strip Bright Data internal fields
         if "ticker" in first:
+            _BD_INTERNAL = {"input"}
+            if _BD_INTERNAL & first.keys():
+                return [{k: v for k, v in r.items() if k not in _BD_INTERNAL} for r in raw]
             return raw
 
         # URL-based format from Bright Data's collector

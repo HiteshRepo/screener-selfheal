@@ -6,7 +6,6 @@
   "required": [
     "company_name",
     "ticker",
-    "exchange",
     "cmp",
     "dividend_yield_pct",
     "scraped_at",
@@ -65,5 +64,5 @@
       "description": "Sales growth as a percentage (optional)"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
