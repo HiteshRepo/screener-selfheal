@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import requests
+from bs4 import BeautifulSoup
 from openai import OpenAI
 
 from src.scraper_client import ConfigurationError
@@ -25,39 +26,18 @@ class PageFetchError(Exception):
     """Raised when the target URL cannot be fetched."""
 
 
-# Targeted selector-fix prompts for each demo mirror layout.
-# These describe *what to change* in plain language rather than providing
-# verbatim code. Bright Data's refactor AI acts on targeted instructions
-# reliably; it ignores "use exactly this code" prompts and rewrites freely.
-# Keyed by the layout marker found in the HTML body.
-_DEMO_FIX_PROMPTS: dict[str, str] = {
-    "layout: v1": (
-        "The current row selector is broken on this page. "
-        "The table uses class 'data-table' inside a div with id 'result'. "
-        "The tbody has no class. "
-        "Change the row selector to $('table.data-table tbody tr'). "
-        "Column order: 1=S.No, 2=Name(a tag), 3=CMP, 4=P/E, 5=MktCap, "
-        "6=DividendYield(dividend_yield_pct), 7=ROCE(roce_pct), 8=ROE(roe_pct), 9=SalesGrowth."
-    ),
-    "layout: v2": (
-        "The current row selector is broken on this page. "
-        "The table uses class 'screener-table' inside a section with id 'screen-output'. "
-        "The tbody has class 'mirror-rows'. "
-        "Change the row selector to $('.mirror-rows tr'). "
-        "Column order: 1=S.No, 2=Name(a tag), 3=CMP, 4=P/E, 5=MktCap, "
-        "6=ROCE(roce_pct), 7=ROE(roe_pct), 8=DividendYield(dividend_yield_pct), 9=SalesGrowth."
-    ),
-}
+_DEMO_LAYOUT_MARKERS = {"layout: v1", "layout: v2"}
 
 
 def generate_fallback_prompt(target_url: str) -> str | None:
-    """Return a targeted selector-fix prompt for demo mirror pages, or None.
+    """Dynamically analyse page HTML and return a targeted selector-fix prompt.
 
-    Fetches *target_url*, looks for a ``<!-- layout: v1 -->`` or
-    ``<!-- layout: v2 -->`` marker, and returns a targeted natural-language
-    prompt describing exactly which selector to change and the correct column
-    order.  Bright Data's refactor AI responds reliably to targeted selector
-    instructions; verbatim code replacement prompts are ignored.
+    Fetches *target_url*, checks for a demo mirror layout marker
+    (``<!-- layout: v1 -->``, ``<!-- layout: v2 -->``), then parses the actual
+    HTML structure with BeautifulSoup to discover the table class, tbody class,
+    and column headers.  The resulting prompt tells Bright Data's refactor AI
+    exactly which row selector to use and what the column order is — derived
+    from what is actually in the HTML, not from any hardcoded lookup.
 
     Returns None for non-demo pages so the caller uses analyse_page() instead.
     """
@@ -67,12 +47,67 @@ def generate_fallback_prompt(target_url: str) -> str | None:
         logger.warning("Fallback: could not fetch HTML from %s: %s", target_url, exc)
         return None
 
-    for marker, prompt in _DEMO_FIX_PROMPTS.items():
-        if marker in html:
-            logger.info("Fallback: demo mirror marker '%s' detected in %s.", marker, target_url)
-            return prompt
+    if not any(marker in html for marker in _DEMO_LAYOUT_MARKERS):
+        return None
 
-    return None
+    structure = _extract_table_structure(html)
+    if not structure:
+        logger.warning("Fallback: could not extract table structure from %s.", target_url)
+        return None
+
+    prompt = _build_selector_fix_prompt(structure)
+    logger.info(
+        "Fallback: generated targeted prompt from HTML structure — "
+        "row_selector=%r columns=%r",
+        structure["row_selector"],
+        structure["columns"],
+    )
+    return prompt
+
+
+def _extract_table_structure(html: str) -> dict | None:
+    """Parse *html* and return scraping-relevant table structure, or None.
+
+    Returns a dict with:
+        row_selector  – jQuery selector string for data rows
+        columns       – ordered list of column header texts
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    table = soup.find("table")
+    if not table:
+        return None
+
+    table_classes = table.get("class") or []
+    table_class = table_classes[0] if table_classes else ""
+
+    tbody = table.find("tbody")
+    tbody_classes = (tbody.get("class") or []) if tbody else []
+    tbody_class = tbody_classes[0] if tbody_classes else ""
+
+    if tbody_class:
+        row_selector = f".{tbody_class} tr"
+    elif table_class:
+        row_selector = f"table.{table_class} tbody tr"
+    else:
+        row_selector = "table tbody tr"
+
+    thead = table.find("thead")
+    columns = [th.get_text(strip=True) for th in thead.find_all("th")] if thead else []
+
+    return {"row_selector": row_selector, "columns": columns}
+
+
+def _build_selector_fix_prompt(structure: dict) -> str:
+    """Build a targeted Bright Data refactor prompt from extracted table structure."""
+    columns_str = ", ".join(
+        f"{i + 1}={col}" for i, col in enumerate(structure["columns"])
+    )
+    return (
+        f"The current row selector is broken on this page. "
+        f"Change the row selector to $('{structure['row_selector']}'). "
+        f"Column order: {columns_str}."
+    )
 
 
 def _load_schema_fields() -> list[str]:
