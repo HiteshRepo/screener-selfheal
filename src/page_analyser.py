@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import requests
+from bs4 import BeautifulSoup
 from openai import OpenAI
 
 from src.scraper_client import ConfigurationError
@@ -25,63 +26,20 @@ class PageFetchError(Exception):
     """Raised when the target URL cannot be fetched."""
 
 
-# Exact JavaScript parser code for each demo mirror layout.
-# Used as a deterministic fallback when the OpenAI-generated prompt fails to
-# produce a working refactor. Keyed by the layout marker found in the HTML.
-_DEMO_PARSER_JS: dict[str, str] = {
-    "layout: v1": """\
-return {
-  stocks: $('table.data-table tbody tr').toArray().map(row => {
-    let $row = $(row);
-    return {
-      company_name: $row.find('td:nth-child(2) a').text_sane(),
-      ticker: null,
-      exchange: null,
-      cmp: +$row.find('td:nth-child(3)').text_sane().replace(/,/g, '') || null,
-      pe_ratio: +$row.find('td:nth-child(4)').text_sane() || null,
-      market_cap_cr: $row.find('td:nth-child(5)').text_sane(),
-      dividend_yield_pct: +$row.find('td:nth-child(6)').text_sane() || null,
-      roce_pct: +$row.find('td:nth-child(7)').text_sane() || null,
-      roe_pct: +$row.find('td:nth-child(8)').text_sane() || null,
-      sales_growth_pct: $row.find('td:nth-child(9)').text_sane(),
-      scraped_at: new Date().toISOString(),
-      source_url: input.url
-    };
-  })
-};""",
-    "layout: v2": """\
-return {
-  stocks: $('.mirror-rows tr').toArray().map(row => {
-    let $row = $(row);
-    return {
-      company_name: $row.find('td:nth-child(2) a').text_sane(),
-      ticker: null,
-      exchange: null,
-      cmp: +$row.find('td:nth-child(3)').text_sane().replace(/,/g, '') || null,
-      pe_ratio: +$row.find('td:nth-child(4)').text_sane() || null,
-      market_cap_cr: $row.find('td:nth-child(5)').text_sane(),
-      roce_pct: +$row.find('td:nth-child(6)').text_sane() || null,
-      roe_pct: +$row.find('td:nth-child(7)').text_sane() || null,
-      dividend_yield_pct: +$row.find('td:nth-child(8)').text_sane() || null,
-      sales_growth_pct: $row.find('td:nth-child(9)').text_sane(),
-      scraped_at: new Date().toISOString(),
-      source_url: input.url
-    };
-  })
-};""",
-}
+_DEMO_LAYOUT_MARKERS = {"layout: v1", "layout: v2"}
 
 
 def generate_fallback_prompt(target_url: str) -> str | None:
-    """Return a deterministic refactor prompt for demo mirror pages, or None.
+    """Dynamically analyse page HTML and return a targeted selector-fix prompt.
 
-    Fetches *target_url*, looks for a ``<!-- layout: v1 -->`` or
-    ``<!-- layout: v2 -->`` marker, and returns a prompt containing the exact
-    JavaScript parser code for that layout.  This is used as a fallback when
-    the OpenAI-generated natural-language prompt fails to produce a working
-    refactor on the first self-heal attempt.
+    Fetches *target_url*, checks for a demo mirror layout marker
+    (``<!-- layout: v1 -->``, ``<!-- layout: v2 -->``), then parses the actual
+    HTML structure with BeautifulSoup to discover the table class, tbody class,
+    and column headers.  The resulting prompt tells Bright Data's refactor AI
+    exactly which row selector to use and what the column order is — derived
+    from what is actually in the HTML, not from any hardcoded lookup.
 
-    Returns None for non-demo pages so the caller can skip the fallback cycle.
+    Returns None for non-demo pages so the caller uses analyse_page() instead.
     """
     try:
         html = _fetch_html(target_url)
@@ -89,17 +47,67 @@ def generate_fallback_prompt(target_url: str) -> str | None:
         logger.warning("Fallback: could not fetch HTML from %s: %s", target_url, exc)
         return None
 
-    for marker, parser_js in _DEMO_PARSER_JS.items():
-        if marker in html:
-            logger.info("Fallback: demo mirror marker '%s' detected in %s.", marker, target_url)
-            return (
-                "The scraper selectors are broken for the current page layout. "
-                "Replace the entire parser code with exactly this JavaScript — "
-                "do not modify it:\n\n"
-                f"{parser_js}"
-            )
+    if not any(marker in html for marker in _DEMO_LAYOUT_MARKERS):
+        return None
 
-    return None
+    structure = _extract_table_structure(html)
+    if not structure:
+        logger.warning("Fallback: could not extract table structure from %s.", target_url)
+        return None
+
+    prompt = _build_selector_fix_prompt(structure)
+    logger.info(
+        "Fallback: generated targeted prompt from HTML structure — "
+        "row_selector=%r columns=%r",
+        structure["row_selector"],
+        structure["columns"],
+    )
+    return prompt
+
+
+def _extract_table_structure(html: str) -> dict | None:
+    """Parse *html* and return scraping-relevant table structure, or None.
+
+    Returns a dict with:
+        row_selector  – jQuery selector string for data rows
+        columns       – ordered list of column header texts
+    """
+    soup = BeautifulSoup(html, "html.parser")
+
+    table = soup.find("table")
+    if not table:
+        return None
+
+    table_classes = table.get("class") or []
+    table_class = table_classes[0] if table_classes else ""
+
+    tbody = table.find("tbody")
+    tbody_classes = (tbody.get("class") or []) if tbody else []
+    tbody_class = tbody_classes[0] if tbody_classes else ""
+
+    if tbody_class:
+        row_selector = f".{tbody_class} tr"
+    elif table_class:
+        row_selector = f"table.{table_class} tbody tr"
+    else:
+        row_selector = "table tbody tr"
+
+    thead = table.find("thead")
+    columns = [th.get_text(strip=True) for th in thead.find_all("th")] if thead else []
+
+    return {"row_selector": row_selector, "columns": columns}
+
+
+def _build_selector_fix_prompt(structure: dict) -> str:
+    """Build a targeted Bright Data refactor prompt from extracted table structure."""
+    columns_str = ", ".join(
+        f"{i + 1}={col}" for i, col in enumerate(structure["columns"])
+    )
+    return (
+        f"The current row selector is broken on this page. "
+        f"Change the row selector to $('{structure['row_selector']}'). "
+        f"Column order: {columns_str}."
+    )
 
 
 def _load_schema_fields() -> list[str]:

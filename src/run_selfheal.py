@@ -104,8 +104,8 @@ def main(argv: list[str] | None = None) -> int:
             logger.info("Page analysis complete — fix_prompt length=%d", len(fix_prompt))
 
         job_id = client.refactor_template(fix_prompt)
-        client.poll_refactor(job_id)
-        client.approve_refactor(job_id)
+        progress = client.poll_refactor(job_id)
+        client.approve_refactor(job_id, progress)
 
         if is_demo_url:
             # Demo pages have unpredictable template propagation delays — skip
