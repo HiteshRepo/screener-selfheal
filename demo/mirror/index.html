@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- layout: v1 -->
+<!-- layout: v2 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -7,45 +7,47 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 32px; background: #f4f6f8; color: #222; }
     h1 { font-size: 1.3rem; margin-bottom: 16px; }
-    #result { overflow-x: auto; }
-    table.data-table { border-collapse: collapse; width: 100%; background: #fff; }
-    table.data-table th {
+    .screener-wrapper { overflow-x: auto; }
+    table.screener-table { border-collapse: collapse; width: 100%; background: #fff; }
+    table.screener-table th {
       background: #1a5fa8; color: #fff;
       padding: 10px 14px; text-align: center; font-size: 0.85rem;
     }
-    table.data-table td { border-bottom: 1px solid #e0e0e0; padding: 9px 14px; text-align: right; }
-    table.data-table td:nth-child(2) { text-align: left; }
-    table.data-table tbody tr:hover { background: #f0f4fa; }
+    table.screener-table td { border-bottom: 1px solid #e0e0e0; padding: 9px 14px; text-align: right; }
+    table.screener-table td:nth-child(2) { text-align: left; }
+    table.screener-table tbody tr:hover { background: #f0f4fa; }
   </style>
 </head>
 <body>
 
 <h1>Highest Dividend-Yield Shares</h1>
 
-<div id="result">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>S.No.</th>
-        <th>Name</th>
-        <th>CMP Rs.</th>
-        <th>P/E</th>
-        <th>Mkt Cap Rs. Cr.</th>
-        <th>Dividend Yield</th>
-        <th>ROCE %</th>
-        <th>ROE %</th>
-        <th>Sales Gr. 3Yrs %</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>1</td><td><a href="#">Coal India Limited</a></td><td>458.75</td><td>7.4</td><td>2,82,310.50</td><td>6.12</td><td>54.20</td><td>49.80</td><td>3.10</td></tr>
-      <tr><td>2</td><td><a href="#">Power Finance Corporation Limited</a></td><td>417.30</td><td>8.9</td><td>1,38,025.00</td><td>5.74</td><td>11.30</td><td>18.60</td><td>22.40</td></tr>
-      <tr><td>3</td><td><a href="#">REC Limited</a></td><td>519.60</td><td>9.1</td><td>1,36,505.80</td><td>5.39</td><td>10.80</td><td>19.20</td><td>19.70</td></tr>
-      <tr><td>4</td><td><a href="#">Oil and Natural Gas Corporation Limited</a></td><td>267.45</td><td>6.3</td><td>3,35,812.40</td><td>4.88</td><td>17.90</td><td>14.20</td><td>—</td></tr>
-      <tr><td>5</td><td><a href="#">Indian Oil Corporation Limited</a></td><td>162.80</td><td>5.7</td><td>2,29,802.10</td><td>4.55</td><td>22.10</td><td>20.40</td><td>8.30</td></tr>
-    </tbody>
-  </table>
-</div>
+<section id="screen-output">
+  <div class="screener-wrapper">
+    <table class="screener-table">
+      <thead class="table-header">
+        <tr>
+          <th>S.No.</th>
+          <th>Name</th>
+          <th>CMP Rs.</th>
+          <th>P/E</th>
+          <th>Mkt Cap Rs. Cr.</th>
+          <th>ROCE %</th>
+          <th>ROE %</th>
+          <th>Div. Yield (%)</th>
+          <th>Sales Gr. 3Yrs %</th>
+        </tr>
+      </thead>
+      <tbody class="mirror-rows">
+        <tr><td>1</td><td><a href="#">Coal India Limited</a></td><td>458.75</td><td>7.4</td><td>2,82,310.50</td><td>54.20</td><td>49.80</td><td>6.12</td><td>3.10</td></tr>
+        <tr><td>2</td><td><a href="#">Power Finance Corporation Limited</a></td><td>417.30</td><td>8.9</td><td>1,38,025.00</td><td>11.30</td><td>18.60</td><td>5.74</td><td>22.40</td></tr>
+        <tr><td>3</td><td><a href="#">REC Limited</a></td><td>519.60</td><td>9.1</td><td>1,36,505.80</td><td>10.80</td><td>19.20</td><td>5.39</td><td>19.70</td></tr>
+        <tr><td>4</td><td><a href="#">Oil and Natural Gas Corporation Limited</a></td><td>267.45</td><td>6.3</td><td>3,35,812.40</td><td>17.90</td><td>14.20</td><td>4.88</td><td>—</td></tr>
+        <tr><td>5</td><td><a href="#">Indian Oil Corporation Limited</a></td><td>162.80</td><td>5.7</td><td>2,29,802.10</td><td>22.10</td><td>20.40</td><td>4.55</td><td>8.30</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
 </body>
 </html>
