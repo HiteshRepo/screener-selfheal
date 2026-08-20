@@ -2,7 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal crawl-check automate-stage2 clean diagram
+.PHONY: venv install test test-schema test-diff test-scraper test-health test-analyser scrape diff smoke selfheal crawl-check automate-stage2 clean diagram demo-diagram diagrams
 
 ## Setup
 
@@ -55,7 +55,12 @@ automate-stage2:
 ## Docs
 
 diagram:
-	mmdc -i docs/architecture.mmd -o docs/architecture.png -t default -b white
+	mmdc -i docs/architecture.mmd -o docs/architecture.png -t default -b white -w 1200
+
+demo-diagram:
+	mmdc -i docs/demo-flow.mmd -o docs/demo-flow.png -t default -b white -w 1200
+
+diagrams: diagram demo-diagram
 
 ## Cleanup
 
