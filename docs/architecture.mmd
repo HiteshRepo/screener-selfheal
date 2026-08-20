@@ -1,0 +1,20 @@
+flowchart TD
+    A["Screener.in\nDividend Screen"] -->|HTTP scrape| BD["Bright Data\nScraper Studio"]
+
+    SC["scraper_client.py"] -->|"POST /dca/trigger"| BD
+    BD -->|"dataset ready"| SC
+    SC -->|write| LJ["data/production/latest.json\n+ previous.json"]
+
+    LJ -->|"record_count > 0"| DE["diff_engine.py"]
+    DE -->|write| CR["data/changes-YYYY-MM-DD.md"]
+    LJ --> GA["GitHub Actions\nauto-commit"]
+    CR --> GA
+    GA --> GL["git history\naudit log"]
+
+    LJ -->|"record_count = 0"| HC["health_check.py"]
+    HC --> PA["page_analyser.py"]
+    PA -->|"fetch HTML via Crawl API"| BD
+    PA -->|"fix prompt"| RT["refactor_template"]
+    RT -->|"POST /refactor_template"| BD
+    BD -->|"preview_result OK"| AR["approve_refactor"]
+    AR -->|"save new parser version"| BD

@@ -19,17 +19,7 @@ This project automates the full data lifecycle for tracking high-dividend-yield 
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    A[Screener.in\nDividend Screen] -->|HTTP| B[Bright Data\nScraper Studio]
-    B -->|/dca/trigger| C[scraper_client.py]
-    C -->|poll /dca/dataset| B
-    C -->|write| D[data/latest.json]
-    D --> E[diff_engine.py]
-    E -->|append| F["data/changes-YYYY-MM-DD.md"]
-    F --> G[GitHub Commit\nbot push + skip ci]
-    G --> H[git history\naudit log]
-```
+![Architecture](docs/architecture.png)
 
 ---
 
