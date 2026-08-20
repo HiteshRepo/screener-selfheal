@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         dataset_id = client.trigger_run(target_url=args.target_url)
         client.poll_until_ready(dataset_id)
-        client.download_results(dataset_id, output_path=_OUTPUT_PATH)
+        client.download_results(dataset_id, output_path=_OUTPUT_PATH, source_url=effective_url)
     except Exception as exc:  # noqa: BLE001
         logger.error("First download cycle failed: %s", exc)
         return 1
