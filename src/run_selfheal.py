@@ -93,8 +93,15 @@ def main(argv: list[str] | None = None) -> int:
 
     fix_prompt: str = ""
     try:
-        fix_prompt = analyse_page(analyse_url)
-        logger.info("Page analysis complete — fix_prompt length=%d", len(fix_prompt))
+        fix_prompt = generate_fallback_prompt(effective_url) or ""
+        if fix_prompt:
+            logger.info(
+                "Using deterministic fallback prompt (layout marker detected) — length=%d",
+                len(fix_prompt),
+            )
+        else:
+            fix_prompt = analyse_page(analyse_url)
+            logger.info("Page analysis complete — fix_prompt length=%d", len(fix_prompt))
 
         job_id = client.refactor_template(fix_prompt)
         client.poll_refactor(job_id)
