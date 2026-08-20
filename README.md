@@ -4,6 +4,8 @@
 
 Automated dividend yield data pipeline powered by **Bright Data Scraper Studio**, with built-in self-healing demonstration.
 
+**[Demo Video](https://drive.google.com/file/d/1xOonXXCvRbySaFnrHSS0y1FS_YTXAJFA/view?usp=drive_link)**
+
 ---
 
 ## Overview
