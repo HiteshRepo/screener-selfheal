@@ -25,63 +25,41 @@ class PageFetchError(Exception):
     """Raised when the target URL cannot be fetched."""
 
 
-# Exact JavaScript parser code for each demo mirror layout.
-# Used as a deterministic fallback when the OpenAI-generated prompt fails to
-# produce a working refactor. Keyed by the layout marker found in the HTML.
-_DEMO_PARSER_JS: dict[str, str] = {
-    "layout: v1": """\
-return {
-  stocks: $('table.data-table tbody tr').toArray().map(row => {
-    let $row = $(row);
-    return {
-      company_name: $row.find('td:nth-child(2) a').text_sane(),
-      ticker: null,
-      exchange: null,
-      cmp: +$row.find('td:nth-child(3)').text_sane().replace(/,/g, '') || null,
-      pe_ratio: +$row.find('td:nth-child(4)').text_sane() || null,
-      market_cap_cr: $row.find('td:nth-child(5)').text_sane(),
-      dividend_yield_pct: +$row.find('td:nth-child(6)').text_sane() || null,
-      roce_pct: +$row.find('td:nth-child(7)').text_sane() || null,
-      roe_pct: +$row.find('td:nth-child(8)').text_sane() || null,
-      sales_growth_pct: $row.find('td:nth-child(9)').text_sane(),
-      scraped_at: new Date().toISOString(),
-      source_url: input.url
-    };
-  })
-};""",
-    "layout: v2": """\
-return {
-  stocks: $('.mirror-rows tr').toArray().map(row => {
-    let $row = $(row);
-    return {
-      company_name: $row.find('td:nth-child(2) a').text_sane(),
-      ticker: null,
-      exchange: null,
-      cmp: +$row.find('td:nth-child(3)').text_sane().replace(/,/g, '') || null,
-      pe_ratio: +$row.find('td:nth-child(4)').text_sane() || null,
-      market_cap_cr: $row.find('td:nth-child(5)').text_sane(),
-      roce_pct: +$row.find('td:nth-child(6)').text_sane() || null,
-      roe_pct: +$row.find('td:nth-child(7)').text_sane() || null,
-      dividend_yield_pct: +$row.find('td:nth-child(8)').text_sane() || null,
-      sales_growth_pct: $row.find('td:nth-child(9)').text_sane(),
-      scraped_at: new Date().toISOString(),
-      source_url: input.url
-    };
-  })
-};""",
+# Targeted selector-fix prompts for each demo mirror layout.
+# These describe *what to change* in plain language rather than providing
+# verbatim code. Bright Data's refactor AI acts on targeted instructions
+# reliably; it ignores "use exactly this code" prompts and rewrites freely.
+# Keyed by the layout marker found in the HTML body.
+_DEMO_FIX_PROMPTS: dict[str, str] = {
+    "layout: v1": (
+        "The current row selector is broken on this page. "
+        "The table uses class 'data-table' inside a div with id 'result'. "
+        "The tbody has no class. "
+        "Change the row selector to $('table.data-table tbody tr'). "
+        "Column order: 1=S.No, 2=Name(a tag), 3=CMP, 4=P/E, 5=MktCap, "
+        "6=DividendYield(dividend_yield_pct), 7=ROCE(roce_pct), 8=ROE(roe_pct), 9=SalesGrowth."
+    ),
+    "layout: v2": (
+        "The current row selector is broken on this page. "
+        "The table uses class 'screener-table' inside a section with id 'screen-output'. "
+        "The tbody has class 'mirror-rows'. "
+        "Change the row selector to $('.mirror-rows tr'). "
+        "Column order: 1=S.No, 2=Name(a tag), 3=CMP, 4=P/E, 5=MktCap, "
+        "6=ROCE(roce_pct), 7=ROE(roe_pct), 8=DividendYield(dividend_yield_pct), 9=SalesGrowth."
+    ),
 }
 
 
 def generate_fallback_prompt(target_url: str) -> str | None:
-    """Return a deterministic refactor prompt for demo mirror pages, or None.
+    """Return a targeted selector-fix prompt for demo mirror pages, or None.
 
     Fetches *target_url*, looks for a ``<!-- layout: v1 -->`` or
-    ``<!-- layout: v2 -->`` marker, and returns a prompt containing the exact
-    JavaScript parser code for that layout.  This is used as a fallback when
-    the OpenAI-generated natural-language prompt fails to produce a working
-    refactor on the first self-heal attempt.
+    ``<!-- layout: v2 -->`` marker, and returns a targeted natural-language
+    prompt describing exactly which selector to change and the correct column
+    order.  Bright Data's refactor AI responds reliably to targeted selector
+    instructions; verbatim code replacement prompts are ignored.
 
-    Returns None for non-demo pages so the caller can skip the fallback cycle.
+    Returns None for non-demo pages so the caller uses analyse_page() instead.
     """
     try:
         html = _fetch_html(target_url)
@@ -89,15 +67,10 @@ def generate_fallback_prompt(target_url: str) -> str | None:
         logger.warning("Fallback: could not fetch HTML from %s: %s", target_url, exc)
         return None
 
-    for marker, parser_js in _DEMO_PARSER_JS.items():
+    for marker, prompt in _DEMO_FIX_PROMPTS.items():
         if marker in html:
             logger.info("Fallback: demo mirror marker '%s' detected in %s.", marker, target_url)
-            return (
-                "The scraper selectors are broken for the current page layout. "
-                "Replace the entire parser code with exactly this JavaScript — "
-                "do not modify it:\n\n"
-                f"{parser_js}"
-            )
+            return prompt
 
     return None
 

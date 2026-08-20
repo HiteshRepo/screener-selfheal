@@ -435,7 +435,7 @@ class BrightDataClient:
         logger.info("Refactor job started — job_id=%s", job_id)
         return job_id
 
-    def poll_refactor(self, job_id: str, timeout: int = 300) -> str:
+    def poll_refactor(self, job_id: str, timeout: int = 300) -> dict[str, Any]:
         """Poll the refactor progress endpoint until a terminal status is reached.
 
         Args:
@@ -443,7 +443,10 @@ class BrightDataClient:
             timeout: Maximum seconds to wait before raising TimeoutError.
 
         Returns:
-            The terminal status string: ``"done"`` or ``"pending_answer"``.
+            The full progress response dict, which includes ``status``,
+            ``preview_result`` (the output Bright Data's AI produced when it
+            tested the generated code against the live page), and ``diff``
+            (template_a = old code, template_b = proposed new code).
 
         Raises:
             TimeoutError: if neither terminal status is reached within `timeout` seconds.
@@ -465,7 +468,8 @@ class BrightDataClient:
             response = self._session.get(url)
             response.raise_for_status()
 
-            status: str = response.json().get("status", "")
+            data = response.json()
+            status: str = data.get("status", "")
             logger.info(
                 "poll_refactor job_id=%s status=%s elapsed=%.0fs",
                 job_id,
@@ -475,19 +479,51 @@ class BrightDataClient:
 
             if status in _TERMINAL:
                 logger.info("Refactor job %s reached status '%s'", job_id, status)
-                return status
+                return data
 
             time.sleep(_POLL_INTERVAL)
 
-    def approve_refactor(self, job_id: str) -> None:
+    def approve_refactor(self, job_id: str, progress: dict[str, Any]) -> None:
         """Approve a pending refactor rewrite so Bright Data saves the changes.
+
+        Validates ``preview_result`` from the progress response before approving.
+        If Bright Data's AI tested its generated code against the page and got
+        zero records back, the proposed code is broken — we raise ``RefactorError``
+        rather than saving a template that is known to be wrong.
 
         Args:
             job_id: The job ID returned by refactor_template.
+            progress: The full dict returned by poll_refactor.
 
         Raises:
-            RefactorError: if the API returns a non-2xx status.
+            RefactorError: if preview_result is empty or the API returns non-2xx.
         """
+        preview = progress.get("preview_result") or []
+        records = []
+        if preview:
+            first = preview[0]
+            if isinstance(first, dict):
+                # Nested {"stocks": [...]} format
+                records = first.get("stocks") or []
+                if isinstance(records, list) and records:
+                    # Filter out Bright Data's "N more items" string sentinel
+                    records = [r for r in records if isinstance(r, dict)]
+            elif isinstance(first, list):
+                records = first
+
+        if not records:
+            raise RefactorError(
+                f"Refusing to approve refactor job {job_id}: "
+                f"preview_result shows 0 records — generated code is broken. "
+                f"preview={preview!r}"
+            )
+
+        logger.info(
+            "Refactor job %s preview looks good (%d record(s)) — approving.",
+            job_id,
+            len(records),
+        )
+
         response = self._session.post(
             f"{_BASE_URL}/dca/collectors/{self._collector_id}/resume_automation_job",
             json={"message": True, "auto_save": True},
