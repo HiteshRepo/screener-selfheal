@@ -19,7 +19,6 @@ from scraper_client import BrightDataClient, ConfigurationError  # noqa: E402
 from health_check import health_check, HealthStatus  # noqa: E402
 from page_analyser import analyse_page, generate_fallback_prompt  # noqa: E402
 
-_OUTPUT_PATH = "data/latest.json"
 _DEFAULT_TARGET_URL = "https://www.screener.in/screens/3/highest-dividend-yield-shares/"
 
 logging.basicConfig(
@@ -50,7 +49,10 @@ def main(argv: list[str] | None = None) -> int:
     # Demo pages (GitHub Pages mirror) have non-deterministic template propagation
     # delays — verification scrapes consistently fail within the same run.
     # Skip post-refactor verification for demo URLs; the next run will confirm recovery.
+    # Data is also written to separate folders to avoid mixing demo and production data.
     is_demo_url = "github.io" in effective_url
+    _OUTPUT_PATH = "data/demo/latest.json" if is_demo_url else "data/production/latest.json"
+    _DATA_DIR = "data/demo" if is_demo_url else "data/production"
 
     try:
         client = BrightDataClient()

@@ -68,7 +68,11 @@ jobs:
           git config user.name "github-actions[bot]"
           BRANCH="chore/selfheal-$(date -u +%Y-%m-%dT%H-%M-%S)"
           git checkout -b "$BRANCH"
-          git add data/latest.json data/changes-*.md || true
+          if echo "${{ inputs.target_url }}" | grep -q "github.io"; then
+            git add data/demo/latest.json data/demo/changes-*.md || true
+          else
+            git add data/production/latest.json data/production/changes-*.md || true
+          fi
           git diff --cached --quiet && { echo "No changes to commit."; exit 0; }
           git commit -m "chore: selfheal results"
           git push origin "$BRANCH"
@@ -77,4 +81,4 @@ jobs:
             --body "Automated self-heal results from $(date -u +%Y-%m-%d)." \
             --base main \
             --head "$BRANCH"
-          gh pr merge "$BRANCH" --auto --squash
+          gh pr merge "$BRANCH" --squash --delete-branch || gh pr merge "$BRANCH" --auto --squash || true
