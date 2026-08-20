@@ -56,6 +56,10 @@ Triggering a real DOM change on Screener.in is not possible — it's a live thir
 - Keep the demo fully automated and reproducible in CI
 - Isolate the self-healing logic from unrelated production scrape noise
 
+### Demo Flow
+
+![Demo Flow](docs/demo-flow.png)
+
 ### PROD vs DEMO Layout Diff
 
 | | PROD (Screener.in) | DEMO Mirror (GitHub Pages) |
