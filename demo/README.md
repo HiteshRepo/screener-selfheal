@@ -1,100 +1,58 @@
 # Self-Healing Demo
 
-This directory contains the static mirror page used to demonstrate Bright Data
-Scraper Studio's self-healing capability.
+This directory contains the static mirror pages used to demonstrate the self-healing loop.
 
-## What Is the Mirror Page?
+## Mirror Page Structure
 
-`demo/mirror/index.html` is a **test fixture** — a static HTML page that
-deliberately replicates the *visual* structure of the Screener.in
-"Highest Dividend Yield Shares" screen while introducing four layout
-alterations that break the original collector's selector logic:
+There are three HTML files:
 
-| Alteration | Original (Screener.in) | Mirror (`index.html`) |
+| File | Role |
+|---|---|
+| `v1.html` | Layout fixture A — `table.data-table`, plain `<tbody>`, Dividend Yield at column 6 |
+| `v2.html` | Layout fixture B — `table.screener-table`, `<tbody class="mirror-rows">`, ROCE at column 6 |
+| `index.html` | The **live** file served by GitHub Pages — always a copy of either v1 or v2 |
+
+Both layouts look visually identical to a human visitor. The differences are structural, in the HTML only:
+
+| | v1 | v2 |
 |---|---|---|
-| Table CSS class | `class="data-table"` | `class="screener-mirror"` |
-| Extra `<div>` wrapper | Table is a direct child of `<div id="result">` | Table is nested inside `.table-outer-wrapper > .table-inner-container` |
-| Column header name | `Dividend Yield` | `Div. Yield (%)` |
-| Column order | ROCE / ROE appear *after* Dividend Yield | ROCE / ROE appear *before* Div. Yield (%) |
+| Table class | `table.data-table` | `table.screener-table` |
+| Container | `<div id="result">` | `<section id="screen-output"><div class="screener-wrapper">` |
+| `<thead>` | bare | `<thead class="table-header">` |
+| `<tbody>` | bare | `<tbody class="mirror-rows">` |
+| Col 6 | Dividend Yield | ROCE % |
+| Col 7 | ROCE % | ROE % |
+| Col 8 | ROE % | Div. Yield (%) |
 
-## Why the Original Selector Fails
+## How the Demo Works
 
-A typical Bright Data collector configured against `screener.in` uses CSS or
-XPath selectors such as:
+`index.html` starts as a copy of v1. The `break-mirror.yml` workflow swaps it to the other layout on every run, creating a fresh selector mismatch — no manual Bright Data reset needed. The demo is fully repeatable.
 
-```
-CSS:   table.data-table > tbody > tr
-XPath: //table[@class='data-table']//tr
-```
+### Why the Collector Breaks
 
-When this selector logic is applied to the mirror page:
+The Bright Data demo collector is configured with selectors for one layout (e.g. `table.data-table tbody tr`). When `index.html` switches to v2, that selector finds nothing — the table class is now `screener-table` and the column order changed. The scrape returns `record_count: 0`.
 
-1. **`table.data-table` does not exist** — the class was renamed to
-   `screener-mirror`. The selector returns **no elements**, producing an
-   **empty result set**.
+### How the Self-Heal Fixes It
 
-2. **Even if the table were found**, the column index for `"Dividend Yield"`
-   differs (column 8 in the mirror vs. column 6 on the live site, and the
-   header text is different). Any field-extraction rule anchored to the header
-   text `"Dividend Yield"` or to a hard-coded column index will return
-   **`null` / empty strings** for every record.
+The self-heal loop (`run_selfheal.py`):
+1. Detects the broken scrape (0 records returned)
+2. Fetches the live `index.html` and parses it with BeautifulSoup to dynamically discover the table class, tbody class, and column headers
+3. Builds a targeted prompt describing exactly which selector to change and the correct column order
+4. Sends the prompt to Bright Data's `refactor_template` API
+5. Validates the generated code using Bright Data's `preview_result` before approving — refuses to save if the preview returns 0 records
+6. Approves and saves the new parser version
 
-3. **XPath depth mismatch** — the extra `.table-outer-wrapper >
-   .table-inner-container` wrapper layers change the DOM depth, breaking
-   absolute XPath expressions.
+## Hosting
 
-### Evidence of Failure
-
-Running the scraper against the mirror URL without updating the collector
-produces output similar to:
-
-```json
-{
-  "meta": {
-    "scraped_at": "2026-08-18T10:00:00Z",
-    "source_url": "https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html",
-    "collector_id": "<collector-id>",
-    "record_count": 0
-  },
-  "records": []
-}
-```
-
-This empty (or malformed) result is captured as `data/demo-before.json` during
-the `selfheal-demo` workflow run.
-
-## Self-Healing Flow (Step-by-Step)
-
-1. **Trigger failure**: Run the `selfheal-demo` GitHub Actions workflow.
-   The workflow sets `DEMO_TARGET_URL` to the GitHub Pages URL of this mirror
-   page and calls `python src/run_scrape.py`. The result (`data/demo-before.json`)
-   contains `record_count: 0`.
-
-2. **Open Scraper Studio**: In the Bright Data dashboard, open the collector
-   and navigate to the "Self-Healing" or "Re-prompt" panel.
-
-3. **Re-prompt with updated selectors**: Provide the corrected selectors or let
-   the Studio AI detect the new class names (`screener-mirror`, updated column
-   headers). Apply the suggested fix.
-
-4. **Re-run**: Trigger the `selfheal-demo` workflow again. The scraper now
-   finds `table.screener-mirror` and maps `Div. Yield (%)` to
-   `dividend_yield_pct`. The result (`data/demo-latest.json`) contains 6 records.
-
-5. **Compare**: The diff engine can be run against `demo-before.json` and
-   `demo-latest.json` to show the ENTERED tickers as evidence of recovery.
-
-## Hosting the Mirror Page
-
-The mirror page is hosted via **GitHub Pages** on the `main` branch at:
+The mirror is hosted via **GitHub Pages** on the `main` branch at:
 
 ```
 https://hiteshrepo.github.io/screener-selfheal/demo/mirror/index.html
 ```
 
-For local testing, serve it with Python's built-in HTTP server:
+For local inspection, serve with Python's built-in server:
 
 ```bash
 python3 -m http.server 8080 --directory .
-# then open http://localhost:8080/demo/mirror/index.html
+# open http://localhost:8080/demo/mirror/index.html
 ```
