@@ -163,6 +163,7 @@ class BrightDataClient:
         self,
         dataset_id: str,
         output_path: str = "data/latest.json",
+        source_url: str | None = None,
     ) -> int:
         """Download dataset results and persist them as an envelope JSON file.
 
@@ -173,6 +174,9 @@ class BrightDataClient:
         Args:
             dataset_id: The ready dataset ID to download.
             output_path: Destination path for the envelope JSON file.
+            source_url: The URL that was scraped. Written into meta and used as
+                fallback source_url on individual records. Defaults to the
+                collector's configured default URL.
 
         Returns:
             The number of records written.
@@ -215,9 +219,10 @@ class BrightDataClient:
         elif not records:
             logger.warning("Dataset %s returned an empty result set.", dataset_id)
 
+        effective_source_url = source_url or _DEFAULT_TARGET_URL
         meta: dict[str, Any] = {
             "scraped_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "source_url": _DEFAULT_TARGET_URL,
+            "source_url": effective_source_url,
             "collector_id": self._collector_id,
             "record_count": len(records),
         }
@@ -323,7 +328,7 @@ class BrightDataClient:
                     "sales_growth_pct": _num(r.get("sales_growth_3yrs") or r.get("sales_growth_pct")),
                     # required by schema but not present in demo collector output
                     "scraped_at": r.get("scraped_at", scraped_at),
-                    "source_url": r.get("source_url", _DEFAULT_TARGET_URL),
+                    "source_url": r.get("source_url") or _DEFAULT_TARGET_URL,
                 })
             logger.info(
                 "Demo mirror format detected — normalised %d record(s) with field remapping.",
