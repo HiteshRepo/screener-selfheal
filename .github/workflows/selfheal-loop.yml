@@ -69,9 +69,11 @@ jobs:
           BRANCH="chore/selfheal-$(date -u +%Y-%m-%dT%H-%M-%S)"
           git checkout -b "$BRANCH"
           if echo "${{ inputs.target_url }}" | grep -q "github.io"; then
-            git add data/demo/latest.json data/demo/changes-*.md || true
+            git add data/demo/latest.json || true
+            git add data/demo/changes-*.md 2>/dev/null || true
           else
-            git add data/production/latest.json data/production/changes-*.md || true
+            git add data/production/latest.json || true
+            git add data/production/changes-*.md 2>/dev/null || true
           fi
           git diff --cached --quiet && { echo "No changes to commit."; exit 0; }
           git commit -m "chore: selfheal results"
