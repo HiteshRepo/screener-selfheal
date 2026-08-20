@@ -1,0 +1,37 @@
+flowchart TD
+    subgraph break["🔴 Phase 1 — Break Mirror"]
+        B1["① Dispatch break-mirror.yml"]
+        B2["② Detect current layout\nv1 or v2"]
+        B3["③ Swap index.html\nto alternate layout"]
+        B4["④ Commit + auto-merge PR\nGitHub Pages redeploys"]
+
+        B1 --> B2 --> B3 --> B4
+    end
+
+    subgraph heal["🟢 Phase 2 — Self-Heal"]
+        H1["⑤ Dispatch selfheal-loop.yml\nwith GitHub Pages mirror URL"]
+        H2["⑥ Select demo collector\ndetects github.io in URL"]
+        H3["⑦ Trigger demo collector"]
+        H4["⑧ Poll until dataset ready"]
+        H5["⑨ Download results\nrecord_count = 0 — broken"]
+        H6["⑩ Fetch live page HTML"]
+        H7["⑪ Parse HTML\nbuild fix prompt\nno hardcoded selectors"]
+        H8["⑫ AI rewrites parser\nvalidates via preview"]
+        H9{"⑬ Preview returns\nrecords?"}
+        H10["⑭ Approve + save\nnew parser version"]
+        H11["⑮ Commit data/demo/latest.json\nto git history"]
+        FAIL["⑭ Abort — broken\nparser not saved"]
+
+        H1 --> H2 --> H3
+        H3 -->|"POST /dca/trigger"| H4
+        H4 -->|"GET /dca/dataset"| H5
+        H5 --> H6
+        H6 -->|"POST /datasets/v3/scrape\nBright Data Crawl API"| H7
+        H7 -->|"POST /dca/collectors/:id/refactor_template"| H8
+        H8 -->|"GET /dca/collectors/:id/refactor_template/progress"| H9
+        H9 -->|"yes"| H10
+        H10 -->|"POST /dca/collectors/:id/resume_automation_job"| H11
+        H9 -->|"no"| FAIL
+    end
+
+    B4 -->|"layout swapped\nselectors now broken"| H1
