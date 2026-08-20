@@ -38,8 +38,8 @@ jobs:
           BRIGHT_DATA_API_TOKEN: ${{ secrets.BRIGHT_DATA_API_TOKEN }}
           BRIGHT_DATA_COLLECTOR_ID: ${{ secrets.BRIGHT_DATA_COLLECTOR_ID }}
         run: |
-          python src/run_scrape.py
-          python src/run_diff.py
+          python src/run_scrape.py --output data/production/latest.json
+          python src/run_diff.py --data-dir data/production
 
       - name: Commit results
         env:
@@ -49,7 +49,7 @@ jobs:
           git config user.name "github-actions[bot]"
           BRANCH="chore/scrape-$(date -u +%Y-%m-%dT%H-%M-%S)"
           git checkout -b "$BRANCH"
-          git add data/latest.json "data/changes-$(date -u +%Y-%m-%d).md" || true
+          git add data/production/latest.json "data/production/changes-$(date -u +%Y-%m-%d).md" || true
           git diff --cached --quiet && { echo "No changes to commit."; exit 0; }
           git commit -m "chore: scrape results"
           git push origin "$BRANCH"
@@ -65,7 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RECORD_COUNT=$(python -c "import json; d=json.load(open('data/latest.json')); print(d['meta']['record_count'])")
+          RECORD_COUNT=$(python -c "import json; d=json.load(open('data/production/latest.json')); print(d['meta']['record_count'])")
           echo "record_count=$RECORD_COUNT"
           if [ "$RECORD_COUNT" -eq 0 ]; then
             echo "Empty result set — triggering self-heal loop."

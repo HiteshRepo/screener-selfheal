@@ -21,8 +21,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--output",
-        default="data/latest.json",
-        help="Output path for the envelope JSON (default: data/latest.json).",
+        default="data/production/latest.json",
+        help="Output path for the envelope JSON (default: data/production/latest.json).",
     )
     parser.add_argument(
         "--poll-interval",
