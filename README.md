@@ -1,5 +1,7 @@
 # Screener Self-Heal — Into the Scrape-Verse Hackathon
 
+**Hitesh Pattanayak** · Senior Product Engineer · Improving
+
 Automated dividend yield data pipeline powered by **Bright Data Scraper Studio**, with built-in self-healing demonstration.
 
 ---
